@@ -324,6 +324,7 @@
               <div class="l">Nivel actual del pozo</div>
               <div class="v"><span id="wellLevel">2.75</span> m</div>
             </div>
+            <div id="wellGauge" style="display:flex;justify-content:center;margin-top:10px"></div>
           </div>
         </div>
       </div>
@@ -582,15 +583,14 @@ function renderPumps(){
           <div class="ind"><span class="led ${termoOk?'led-ok':'led-bad'}"></span>Relé temperatura</div>
           <div class="ind"><span class="led ${p.state==='run'?'led-ok':p.state==='fault'?'led-bad':'led-off'}"></span>Marcha motor</div>
         </div>
-        <div class="gauge-row">
-          ${gaugeRingSVG('Potencia', p.powN.toFixed(1), 'kW', p.powN, 10, 'var(--celeste)')}
-          ${gaugeRingSVG('Corriente', p.curN.toFixed(1), 'A', p.curN, 20, 'var(--verde)')}
-          ${gaugeRingSVG('RPM', p.rpm, '', p.rpm, 1500, 'var(--naranja)')}
+        <div class="metrics">
+          <div class="metric"><div class="lbl">Potencia</div><div class="val">${p.powN.toFixed(1)} <small>kW</small></div></div>
+          <div class="metric"><div class="lbl">Corriente</div><div class="val">${p.curN.toFixed(1)} <small>A</small></div></div>
+          <div class="metric"><div class="lbl">RPM</div><div class="val">${p.rpm}</div></div>
         </div>
-        <div class="gauge-row">
-          ${gaugeRingSVG('Horas uso', p.hUse.toLocaleString('es'), 'h', p.hUse, 20000, 'var(--celeste)')}
-          ${gaugeRingSVG('Próx. mant.', p.hMaint, 'h', p.hMaint, MAINT_INTERVAL, maintColor)}
-          ${gaugeRingSVG('Presión', p.pres.toFixed(2), 'bar', p.pres, 5, 'var(--celeste)')}
+        <div class="maint">
+          <div class="metric"><div class="lbl">Horas de uso</div><div class="val">${p.hUse.toLocaleString('es')} <small>h</small></div></div>
+          <div class="metric"><div class="lbl">Próx. mantenimiento</div><div class="val" style="color:${maintColor}">${p.hMaint} <small>h</small></div><div class="bar"><i style="width:${maintPct}%;background:${maintColor}"></i></div></div>
         </div>
         <div class="curve-box">
           <div class="ch">
@@ -670,14 +670,14 @@ const elec = {
 };
 function renderElec(){
   document.getElementById("phases").innerHTML = `
-    ${gaugeRingSVG('L1 — Tensión', elec.vL1.toFixed(1), 'V', elec.vL1, 250, 'var(--celeste)')}
-    ${gaugeRingSVG('L2 — Tensión', elec.vL2.toFixed(1), 'V', elec.vL2, 250, 'var(--verde)')}
-    ${gaugeRingSVG('L3 — Tensión', elec.vL3.toFixed(1), 'V', elec.vL3, 250, 'var(--naranja)')}`;
+    <div class="ph"><div class="pn">L1</div><div class="pv">${elec.vL1.toFixed(1)} <small>V</small></div><div class="pv">${elec.iL1.toFixed(1)} <small>A</small></div></div>
+    <div class="ph"><div class="pn">L2</div><div class="pv">${elec.vL2.toFixed(1)} <small>V</small></div><div class="pv">${elec.iL2.toFixed(1)} <small>A</small></div></div>
+    <div class="ph"><div class="pn">L3</div><div class="pv">${elec.vL3.toFixed(1)} <small>V</small></div><div class="pv">${elec.iL3.toFixed(1)} <small>A</small></div></div>`;
   document.getElementById("elecSummary").innerHTML = `
-    ${gaugeRingSVG('Pot. activa', elec.pAct.toFixed(1), 'kW', elec.pAct, 15, 'var(--celeste)')}
-    ${gaugeRingSVG('Pot. reactiva', elec.pReact.toFixed(1), 'kVAr', elec.pReact, 8, 'var(--naranja)')}
-    ${gaugeRingSVG('Factor pot.', elec.fp.toFixed(2), '', elec.fp, 1, 'var(--verde)')}
-    ${gaugeRingSVG('Frecuencia', elec.freq.toFixed(1), 'Hz', elec.freq, 60, 'var(--celeste)')}`;
+    <div class="es"><span class="l">Pot. activa</span><span class="v">${elec.pAct.toFixed(1)} kW</span></div>
+    <div class="es"><span class="l">Pot. reactiva</span><span class="v">${elec.pReact.toFixed(1)} kVAr</span></div>
+    <div class="es"><span class="l">Factor pot.</span><span class="v">${elec.fp.toFixed(2)}</span></div>
+    <div class="es"><span class="l">Frecuencia</span><span class="v">${elec.freq.toFixed(1)} Hz</span></div>`;
   const asimOk = elec.asimetria < 3;
   document.getElementById("phaseHealth").innerHTML = `
     <div class="phase-chip"><span class="led ${elec.tension?'led-ok':'led-bad'}"></span>Presencia de tensión</div>
@@ -692,6 +692,8 @@ function renderWell(){
   const pct = (wellLevel/WELL_MAX)*100;
   document.getElementById("water").style.height = pct+"%";
   document.getElementById("wellLevel").textContent = wellLevel.toFixed(2);
+  const lvlColor = wellLevel > 3.5 ? 'var(--rojo)' : wellLevel > 2.0 ? 'var(--celeste)' : 'var(--naranja)';
+  document.getElementById("wellGauge").innerHTML = gaugeRingSVG('Nivel', Math.round(pct), '%', pct, 100, lvlColor);
 }
 
 /* ====== Mapa ====== */
