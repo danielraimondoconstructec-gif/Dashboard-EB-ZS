@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Supervisión EB 13 ZS — Estación de Bombeo de Aguas Residuales</title>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
 <style>
   :root{
     --celeste:#4A90E2;
@@ -223,6 +224,20 @@
   #map{height:300px;width:100%;border-radius:0 0 var(--radio) var(--radio);z-index:1}
   .map-foot{display:flex;justify-content:space-between;align-items:center;padding:10px 14px;border-top:1px solid #eee;font-size:11.5px;color:var(--gris-medio)}
 
+  /* ===== Gráficos de tendencia ===== */
+  .trends-section{margin-top:16px}
+  .trends-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:16px}
+  .trend-card{
+    background:var(--blanco);border-radius:var(--radio);box-shadow:var(--sombra);
+    border:1px solid #e8e8e8;overflow:hidden;
+  }
+  .trend-card > h4{
+    font-size:13.5px;font-weight:700;padding:12px 14px;border-bottom:1px solid #eee;
+    color:var(--gris-oscuro);display:flex;align-items:center;gap:8px;background:#fafcff;
+  }
+  .trend-card .trend-body{padding:14px;height:220px;position:relative}
+  @media(max-width:1200px){.trends-grid{grid-template-columns:1fr}}
+
   /* Alarmas */
   .alarms-card{margin-top:16px}
   .alarms-head{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;padding:12px 14px;border-bottom:1px solid #eee;background:#fafcff}
@@ -355,6 +370,27 @@
     </div>
   </div>
 
+  <!-- Gráficos de tendencia -->
+  <div class="section-title">Tendencias en el tiempo — Últimos 2 minutos</div>
+  <div class="trends-grid">
+    <div class="trend-card">
+      <h4>⚡ Bomba B1 — Potencia · Corriente · RPM</h4>
+      <div class="trend-body"><canvas id="trendB1"></canvas></div>
+    </div>
+    <div class="trend-card">
+      <h4>🔌 Tablero eléctrico — Tensiones L1 · L2 · L3</h4>
+      <div class="trend-body"><canvas id="trendElec"></canvas></div>
+    </div>
+    <div class="trend-card">
+      <h4>⚡ Tablero eléctrico — Potencia activa · Factor de potencia</h4>
+      <div class="trend-body"><canvas id="trendPower"></canvas></div>
+    </div>
+    <div class="trend-card">
+      <h4>💧 Pozo de bombeo — Nivel del agua</h4>
+      <div class="trend-body"><canvas id="trendWell"></canvas></div>
+    </div>
+  </div>
+
   <!-- Alarmas -->
   <div class="card alarms-card">
     <div class="alarms-head">
@@ -380,6 +416,105 @@
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
+/* ====== Historial de tendencias ====== */
+const HISTORY_MAX = 60;
+const history = {
+  labels: [],
+  b1Pow:[], b1Cur:[], b1Rpm:[],
+  vL1:[], vL2:[], vL3:[],
+  pAct:[], fp:[],
+  well:[]
+};
+function pushHistory(){
+  const now = new Date();
+  const ts = now.toLocaleTimeString('es-PY',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+  history.labels.push(ts);
+  history.b1Pow.push(pumps[0].powN);
+  history.b1Cur.push(pumps[0].curN);
+  history.b1Rpm.push(pumps[0].rpm);
+  history.vL1.push(elec.vL1);
+  history.vL2.push(elec.vL2);
+  history.vL3.push(elec.vL3);
+  history.pAct.push(elec.pAct);
+  history.fp.push(elec.fp);
+  history.well.push(wellLevel);
+  if(history.labels.length > HISTORY_MAX){
+    Object.values(history).forEach(arr => arr.shift());
+  }
+}
+
+let chartB1, chartElec, chartPower, chartWell;
+const chartDefaults = {
+  animation:{duration:400},
+  responsive:true, maintainAspectRatio:false,
+  interaction:{mode:'index',intersect:false},
+  plugins:{legend:{position:'bottom',labels:{boxWidth:10,font:{size:11,family:'Segoe UI'}}}},
+  scales:{
+    x:{ticks:{maxTicksLimit:8,font:{size:10}},grid:{color:'#f0f0f0'}},
+    y:{ticks:{font:{size:10}},grid:{color:'#f0f0f0'}}
+  }
+};
+function mkDataset(label,data,color,yID){
+  return {label,data,borderColor:color,backgroundColor:color+'22',borderWidth:2,pointRadius:0,tension:.35,fill:false,yAxisID:yID||'y'};
+}
+function initCharts(){
+  chartB1 = new Chart(document.getElementById('trendB1'),{
+    type:'line',
+    data:{labels:history.labels,datasets:[
+      mkDataset('Potencia (kW)',history.b1Pow,'#4A90E2','y'),
+      mkDataset('Corriente (A)',history.b1Cur,'#27AE60','y'),
+      mkDataset('RPM',history.b1Rpm,'#F39C12','y1')
+    ]},
+    options:{...chartDefaults,scales:{
+      ...chartDefaults.scales,
+      y:{...chartDefaults.scales.y,title:{display:true,text:'kW / A',font:{size:10}},position:'left'},
+      y1:{ticks:{font:{size:10}},grid:{drawOnChartArea:false},title:{display:true,text:'RPM',font:{size:10}},position:'right'}
+    }}
+  });
+  chartElec = new Chart(document.getElementById('trendElec'),{
+    type:'line',
+    data:{labels:history.labels,datasets:[
+      mkDataset('L1 (V)',history.vL1,'#4A90E2'),
+      mkDataset('L2 (V)',history.vL2,'#27AE60'),
+      mkDataset('L3 (V)',history.vL3,'#F39C12')
+    ]},
+    options:{...chartDefaults,scales:{
+      ...chartDefaults.scales,
+      y:{...chartDefaults.scales.y,title:{display:true,text:'Voltaje (V)',font:{size:10}},suggestedMin:225,suggestedMax:235}
+    }}
+  });
+  chartPower = new Chart(document.getElementById('trendPower'),{
+    type:'line',
+    data:{labels:history.labels,datasets:[
+      mkDataset('Pot. activa (kW)',history.pAct,'#4A90E2','y'),
+      mkDataset('Factor pot.',history.fp,'#27AE60','y1')
+    ]},
+    options:{...chartDefaults,scales:{
+      ...chartDefaults.scales,
+      y:{...chartDefaults.scales.y,title:{display:true,text:'kW',font:{size:10}},position:'left'},
+      y1:{ticks:{font:{size:10}},grid:{drawOnChartArea:false},title:{display:true,text:'cos φ',font:{size:10}},position:'right',suggestedMin:0.90,suggestedMax:1.0}
+    }}
+  });
+  chartWell = new Chart(document.getElementById('trendWell'),{
+    type:'line',
+    data:{labels:history.labels,datasets:[
+      {...mkDataset('Nivel (m)',history.well,'#4A90E2'),fill:true,backgroundColor:'rgba(74,144,226,.15)'}
+    ]},
+    options:{...chartDefaults,
+      plugins:{...chartDefaults.plugins,
+        annotation:undefined
+      },
+      scales:{
+        ...chartDefaults.scales,
+        y:{...chartDefaults.scales.y,title:{display:true,text:'Metros',font:{size:10}},suggestedMin:0,suggestedMax:4.5}
+      }
+    }
+  });
+}
+function updateCharts(){
+  [chartB1,chartElec,chartPower,chartWell].forEach(c=>{if(c){c.data.labels=history.labels;c.update();}});
+}
+
 /* ====== Estado de las bombas ====== */
 const pumpIconSVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="7"/><path d="M12 5v7l4 2"/><path d="M19 12h2M3 12h2"/></svg>';
 
@@ -636,10 +771,12 @@ function simulate(){
   wellLevel += (Math.random()-0.45)*0.06;
   wellLevel = Math.max(0.6, Math.min(4.2, wellLevel));
   renderPumps(); renderElec(); renderWell();
+  pushHistory(); updateCharts();
 }
 
 /* ====== Init ====== */
 renderPumps(); renderElec(); renderWell(); renderAlarms(); tickClock(); initMap();
+pushHistory(); initCharts();
 setInterval(tickClock,1000);
 setInterval(simulate,2000);
 </script>
