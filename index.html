@@ -131,6 +131,18 @@
   .metric .val{font-size:17px;font-weight:700;color:var(--gris-oscuro);margin-top:2px}
   .metric .val small{font-size:11px;color:var(--gris-medio);font-weight:600}
 
+  /* ===== Indicadores circulares tipo gauge ===== */
+  .gauge-row{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+  .gauge{display:flex;flex-direction:column;align-items:center;padding:12px 6px}
+  .gauge-ring{position:relative;width:90px;height:90px}
+  .gauge-ring svg{width:100%;height:100%;transform:rotate(-90deg)}
+  .gauge-ring .track{fill:none;stroke:var(--gris-medio);opacity:.25;stroke-width:7}
+  .gauge-ring .fill{fill:none;stroke-width:7;stroke-linecap:round;transition:stroke-dashoffset .8s ease}
+  .gauge-center{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center}
+  .gauge-center .gv{font-size:18px;font-weight:700;color:var(--gris-oscuro);line-height:1}
+  .gauge-center .gv small{font-size:10px;color:var(--gris-medio);font-weight:600}
+  .gauge .glbl{font-size:10px;color:var(--gris-medio);font-weight:600;text-transform:uppercase;letter-spacing:.4px;margin-top:6px}
+
   .maint{display:flex;gap:8px}
   .maint .metric{flex:1}
   .maint .bar{height:5px;background:var(--gris-medio);border-radius:3px;margin-top:6px;overflow:hidden}
@@ -163,12 +175,18 @@
   .card-body{padding:14px}
 
   /* Eléctrico */
-  .elec-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+  .elec-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;justify-items:center}
   .ph{border-radius:6px;padding:10px;text-align:center;background:var(--gris-claro)}
   .ph .pn{font-size:11px;font-weight:700;color:var(--celeste)}
   .ph .pv{font-size:15px;font-weight:700;margin-top:3px}
   .ph .pv small{font-size:10px;color:var(--gris-medio)}
-  .elec-summary{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-top:12px}
+  .elec-gauges{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+  .elec-gauge{display:flex;flex-direction:column;align-items:center;padding:14px 6px;background:var(--gris-claro);border-radius:8px}
+  .elec-gauge .gauge-ring{width:80px;height:80px}
+  .elec-gauge .gauge-center .gv{font-size:16px}
+  .elec-gauge .glbl{font-size:10px;color:var(--gris-medio);font-weight:600;text-transform:uppercase;letter-spacing:.4px;margin-top:6px}
+  .elec-gauge .gsub{font-size:11px;color:var(--gris-medio);font-weight:600;margin-top:2px}
+  .elec-summary{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-top:12px;justify-items:center}
   .es{background:var(--celeste-claro);border-radius:6px;padding:9px 11px;display:flex;justify-content:space-between;align-items:center}
   .es .l{font-size:11.5px;color:var(--gris-oscuro);font-weight:600}
   .es .v{font-size:14px;font-weight:700;color:var(--gris-oscuro)}
@@ -378,6 +396,29 @@ function stateMeta(s){
   return {cls:"b-fault",txt:"DEFECTO TÉRMICO"};
 }
 
+/* ====== Gauge circular SVG helper ====== */
+const GAUGE_R = 36, GAUGE_C = 2 * Math.PI * GAUGE_R;
+function gaugeRingSVG(label, displayVal, unit, rawVal, maxVal, color){
+  const pct = Math.max(0, Math.min(1, rawVal / maxVal));
+  const offset = GAUGE_C * (1 - pct);
+  const unitHtml = unit ? `<small> ${unit}</small>` : '';
+  return `<div class="gauge">
+    <div class="gauge-ring">
+      <svg viewBox="0 0 80 80">
+        <circle class="track" cx="40" cy="40" r="${GAUGE_R}"/>
+        <circle class="fill" cx="40" cy="40" r="${GAUGE_R}"
+          stroke="${color}"
+          stroke-dasharray="${GAUGE_C}"
+          stroke-dashoffset="${offset}"/>
+      </svg>
+      <div class="gauge-center">
+        <div class="gv">${displayVal}${unitHtml}</div>
+      </div>
+    </div>
+    <div class="glbl">${label}</div>
+  </div>`;
+}
+
 function renderPumps(){
   const wrap = document.getElementById("pumps");
   wrap.innerHTML = pumps.map(p=>{
@@ -406,18 +447,15 @@ function renderPumps(){
           <div class="ind"><span class="led ${termoOk?'led-ok':'led-bad'}"></span>Relé temperatura</div>
           <div class="ind"><span class="led ${p.state==='run'?'led-ok':p.state==='fault'?'led-bad':'led-off'}"></span>Marcha motor</div>
         </div>
-        <div class="metrics">
-          <div class="metric"><div class="lbl">Potencia</div><div class="val">${p.powN.toFixed(1)}<small> kW</small></div></div>
-          <div class="metric"><div class="lbl">Corriente</div><div class="val">${p.curN.toFixed(1)}<small> A</small></div></div>
-          <div class="metric"><div class="lbl">RPM</div><div class="val">${p.rpm}</div></div>
+        <div class="gauge-row">
+          ${gaugeRingSVG('Potencia', p.powN.toFixed(1), 'kW', p.powN, 10, 'var(--celeste)')}
+          ${gaugeRingSVG('Corriente', p.curN.toFixed(1), 'A', p.curN, 20, 'var(--verde)')}
+          ${gaugeRingSVG('RPM', p.rpm, '', p.rpm, 1500, 'var(--naranja)')}
         </div>
-        <div class="maint">
-          <div class="metric"><div class="lbl">Horas de uso</div><div class="val">${p.hUse.toLocaleString('es')}<small> h</small></div></div>
-          <div class="metric">
-            <div class="lbl">Próx. mantenimiento</div>
-            <div class="val" style="color:${maintColor}">${p.hMaint}<small> h</small></div>
-            <div class="bar"><i style="width:${maintPct}%;background:${maintColor}"></i></div>
-          </div>
+        <div class="gauge-row">
+          ${gaugeRingSVG('Horas uso', p.hUse.toLocaleString('es'), 'h', p.hUse, 20000, 'var(--celeste)')}
+          ${gaugeRingSVG('Próx. mant.', p.hMaint, 'h', p.hMaint, MAINT_INTERVAL, maintColor)}
+          ${gaugeRingSVG('Presión', p.pres.toFixed(2), 'bar', p.pres, 5, 'var(--celeste)')}
         </div>
         <div class="curve-box">
           <div class="ch">
@@ -497,14 +535,14 @@ const elec = {
 };
 function renderElec(){
   document.getElementById("phases").innerHTML = `
-    <div class="ph"><div class="pn">L1</div><div class="pv">${elec.vL1.toFixed(1)}<small> V</small></div><div class="pv" style="font-size:12px;color:var(--gris-medio)">${elec.iL1.toFixed(1)} A</div></div>
-    <div class="ph"><div class="pn">L2</div><div class="pv">${elec.vL2.toFixed(1)}<small> V</small></div><div class="pv" style="font-size:12px;color:var(--gris-medio)">${elec.iL2.toFixed(1)} A</div></div>
-    <div class="ph"><div class="pn">L3</div><div class="pv">${elec.vL3.toFixed(1)}<small> V</small></div><div class="pv" style="font-size:12px;color:var(--gris-medio)">${elec.iL3.toFixed(1)} A</div></div>`;
+    ${gaugeRingSVG('L1 — Tensión', elec.vL1.toFixed(1), 'V', elec.vL1, 250, 'var(--celeste)')}
+    ${gaugeRingSVG('L2 — Tensión', elec.vL2.toFixed(1), 'V', elec.vL2, 250, 'var(--verde)')}
+    ${gaugeRingSVG('L3 — Tensión', elec.vL3.toFixed(1), 'V', elec.vL3, 250, 'var(--naranja)')}`;
   document.getElementById("elecSummary").innerHTML = `
-    <div class="es"><span class="l">Potencia activa</span><span class="v">${elec.pAct.toFixed(1)} kW</span></div>
-    <div class="es"><span class="l">Potencia reactiva</span><span class="v">${elec.pReact.toFixed(1)} kVAr</span></div>
-    <div class="es"><span class="l">Factor de potencia</span><span class="v">${elec.fp.toFixed(2)}</span></div>
-    <div class="es"><span class="l">Frecuencia</span><span class="v">${elec.freq.toFixed(1)} Hz</span></div>`;
+    ${gaugeRingSVG('Pot. activa', elec.pAct.toFixed(1), 'kW', elec.pAct, 15, 'var(--celeste)')}
+    ${gaugeRingSVG('Pot. reactiva', elec.pReact.toFixed(1), 'kVAr', elec.pReact, 8, 'var(--naranja)')}
+    ${gaugeRingSVG('Factor pot.', elec.fp.toFixed(2), '', elec.fp, 1, 'var(--verde)')}
+    ${gaugeRingSVG('Frecuencia', elec.freq.toFixed(1), 'Hz', elec.freq, 60, 'var(--celeste)')}`;
   const asimOk = elec.asimetria < 3;
   document.getElementById("phaseHealth").innerHTML = `
     <div class="phase-chip"><span class="led ${elec.tension?'led-ok':'led-bad'}"></span>Presencia de tensión</div>
