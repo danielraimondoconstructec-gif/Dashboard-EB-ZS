@@ -178,18 +178,33 @@
   }
   .card-body{padding:14px}
 
-  /* Eléctrico */
-  .elec-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
-  .ph{border-radius:6px;padding:10px;text-align:center;background:var(--gris-claro)}
-  .ph .pn{font-size:11px;font-weight:700;color:var(--celeste)}
-  .ph .pv{font-size:15px;font-weight:700;margin-top:3px}
-  .ph .pv small{font-size:10px;color:var(--gris-medio)}
-  .elec-gauges{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
-  .elec-gauge{display:flex;flex-direction:column;align-items:center;padding:14px 6px;background:var(--gris-claro);border-radius:8px}
-  .elec-gauge .gauge-ring{width:80px;height:80px}
-  .elec-gauge .gauge-center .gv{font-size:16px}
-  .elec-gauge .glbl{font-size:10px;color:var(--gris-medio);font-weight:600;text-transform:uppercase;letter-spacing:.4px;margin-top:6px}
-  .elec-gauge .gsub{font-size:11px;color:var(--gris-medio);font-weight:600;margin-top:2px}
+  /* Eléctrico — Panel CCM */
+  .ccm-phases{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+  .ccm-col{background:var(--gris-claro);border-radius:8px;overflow:hidden}
+  .ccm-col-head{font-size:13px;font-weight:700;padding:8px 10px;color:var(--gris-oscuro);text-align:center;border-bottom:1px solid #e0e0e0}
+  .ccm-top{display:grid;grid-template-columns:1fr auto;gap:8px;padding:10px;align-items:center}
+  .ccm-chart-wrap{position:relative;height:110px;min-width:0}
+  .ccm-gauge-big{display:flex;flex-direction:column;align-items:center;min-width:120px}
+  .ccm-gauge-big .sg-val{font-size:32px;font-weight:700;color:var(--gris-oscuro);margin-top:-6px}
+  .ccm-gauge-big .sg-lbl{font-size:10px;color:var(--gris-medio);font-weight:600;text-transform:uppercase;margin-top:2px}
+  .ccm-gauge-big .sg-sub{font-size:12px;font-weight:700;color:var(--verde);margin-top:1px}
+  .ccm-gauge-big .sg-site{font-size:9px;color:var(--gris-medio);margin-top:2px}
+  .ccm-mid{display:grid;grid-template-columns:1fr auto;gap:8px;padding:8px 10px;border-top:1px solid #e8e8e8}
+  .ccm-table-wrap{overflow-y:auto;max-height:145px;border:1px solid #e0e0e0;border-radius:4px;background:#fff}
+  .ccm-table{width:100%;border-collapse:collapse;font-size:9.5px}
+  .ccm-table th{background:#f4f6fa;padding:3px 5px;font-weight:700;text-align:left;color:var(--gris-medio);border-bottom:1px solid #e0e0e0;position:sticky;top:0}
+  .ccm-table td{padding:2px 5px;border-bottom:1px solid #f0f0f0;white-space:nowrap}
+  .ccm-table tr:hover td{background:#f0f5ff}
+  .ccm-gauge-sm{display:flex;flex-direction:column;align-items:center;min-width:95px;justify-content:center}
+  .ccm-gauge-sm .sg-val{font-size:22px;font-weight:700;color:var(--gris-oscuro);margin-top:-4px}
+  .ccm-gauge-sm .sg-lbl{font-size:9px;color:var(--gris-medio);font-weight:600;margin-top:2px}
+  .ccm-gauge-sm .sg-sub{font-size:10px;font-weight:700;color:var(--celeste);margin-top:1px}
+  .ccm-stats-section{margin-top:14px;overflow-x:auto}
+  .ccm-stats-tbl{width:100%;border-collapse:collapse;font-size:10.5px}
+  .ccm-stats-tbl th{background:#f4f6fa;padding:6px 8px;font-weight:700;text-align:center;color:var(--gris-medio);border:1px solid #e0e0e0;font-size:9.5px;text-transform:uppercase;white-space:nowrap}
+  .ccm-stats-tbl td{padding:5px 8px;border:1px solid #e8e8e8;text-align:center;font-weight:600}
+  .ccm-stats-tbl tr:hover td{background:#f0f5ff}
+  .ccm-power-row{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:14px}
   .elec-summary{display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin-top:12px}
   .es{background:var(--celeste-claro);border-radius:6px;padding:9px 11px;display:flex;justify-content:space-between;align-items:center}
   .es .l{font-size:11.5px;color:var(--gris-oscuro);font-weight:600}
@@ -301,17 +316,17 @@
   <section class="pumps" id="pumps"></section>
 
   <div class="section-title">Supervisión general de la estación</div>
-  <div class="grid-lower">
-    <!-- Eléctrico -->
-    <div class="card">
-      <h4>⚡ Tablero eléctrico — Multimedidor paramétrico (CCM)</h4>
-      <div class="card-body">
-        <div class="elec-grid" id="phases"></div>
-        <div class="elec-summary" id="elecSummary"></div>
-        <div class="phase-row" id="phaseHealth"></div>
-      </div>
+  <!-- Eléctrico — Panel CCM full width -->
+  <div class="card" style="margin-bottom:16px">
+    <h4>⚡ Tablero eléctrico — Multimedidor paramétrico (CCM)</h4>
+    <div class="card-body">
+      <div class="ccm-phases" id="ccmPhases"></div>
+      <div class="ccm-stats-section" id="ccmStats"></div>
+      <div class="elec-summary" id="elecSummary"></div>
+      <div class="phase-row" id="phaseHealth"></div>
     </div>
-
+  </div>
+  <div class="grid-lower" style="grid-template-columns:1fr 1fr">
     <!-- Hidráulico -->
     <div class="card">
       <h4>💧 Pozo de bombeo — Niveles</h4>
@@ -847,11 +862,189 @@ const elec = {
   pAct:9.6, pReact:3.1, fp:0.95, freq:50.0,
   tension:true, asimetria:1.2, secuencia:"L1-L2-L3 (correcta)"
 };
+// Line-to-line voltages (V_LL = V_phase × √3)
+const SQRT3 = Math.sqrt(3);
+elec.vL1L2 = +((elec.vL1+elec.vL2)/2*SQRT3).toFixed(1);
+elec.vL3L2 = +((elec.vL3+elec.vL2)/2*SQRT3).toFixed(1);
+elec.vL3L1 = +((elec.vL3+elec.vL1)/2*SQRT3).toFixed(1);
+
+// CCM phase definitions
+const CCM_PHASES = [
+  {key:'L1L2', label:'Volt L1/L2', vKey:'vL1L2', iKey:'iL1', chartId:'ccmChart0'},
+  {key:'L3L2', label:'Volt L3/L2', vKey:'vL3L2', iKey:'iL2', chartId:'ccmChart1'},
+  {key:'L3L1', label:'Volt L3/L1', vKey:'vL3L1', iKey:'iL3', chartId:'ccmChart2'}
+];
+
+// CCM history and readings
+const CCM_HIST_MAX = 120;
+const ccmHist = {labels:[], L1L2:[], L3L2:[], L3L1:[]};
+const ccmReadings = {L1L2:[], L3L2:[], L3L1:[]};
+let ccmReadingId = 19683;
+const ccmStatsAcc = {
+  L1L2:{sum:0,count:0,max:-Infinity,min:Infinity,sumSq:0},
+  L3L2:{sum:0,count:0,max:-Infinity,min:Infinity,sumSq:0},
+  L3L1:{sum:0,count:0,max:-Infinity,min:Infinity,sumSq:0}
+};
+let ccmCharts = [null, null, null];
+
+// Semicircular gauge SVG
+function semiGaugeSVG(value, min, max, color, w, h){
+  const pct = Math.max(0, Math.min(1, (value-min)/(max-min)));
+  const r = w*0.4, cx = w/2, cy = h*0.82, sw = w*0.08;
+  const endAngle = Math.PI*(1-pct);
+  const ex = cx + r*Math.cos(endAngle), ey = cy - r*Math.sin(endAngle);
+  const la = pct > 0.5 ? 1 : 0;
+  const trackD = `M ${cx-r} ${cy} A ${r} ${r} 0 0 1 ${cx+r} ${cy}`;
+  const fillD = pct > 0 ? `M ${cx-r} ${cy} A ${r} ${r} 0 ${la} 1 ${ex.toFixed(1)} ${ey.toFixed(1)}` : '';
+  return `<svg viewBox="0 0 ${w} ${h}" width="${w}" height="${h}">
+    <path d="${trackD}" fill="none" stroke="#e0e0e0" stroke-width="${sw}" stroke-linecap="round"/>
+    ${fillD ? `<path d="${fillD}" fill="none" stroke="${color}" stroke-width="${sw}" stroke-linecap="round"/>` : ''}
+    <text x="${cx-r}" y="${cy+sw+8}" font-size="${w*0.055}" fill="#999" text-anchor="start">${min}</text>
+    <text x="${cx+r}" y="${cy+sw+8}" font-size="${w*0.055}" fill="#999" text-anchor="end">${max}</text>
+  </svg>`;
+}
+
+function pushCcmHistory(){
+  const now = new Date();
+  const ts = now.toLocaleTimeString('es-PY',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+  ccmHist.labels.push(ts);
+  CCM_PHASES.forEach(p => {
+    const v = elec[p.vKey];
+    ccmHist[p.key].push(v);
+    // Stats accumulator
+    const s = ccmStatsAcc[p.key];
+    s.sum += v; s.count++; s.sumSq += v*v;
+    if(v > s.max) s.max = v;
+    if(v < s.min) s.min = v;
+    // Add reading to table
+    ccmReadingId++;
+    const d = now.toLocaleDateString('es-PY',{day:'2-digit',month:'2-digit',year:'numeric'});
+    const h = now.toLocaleTimeString('es-PY',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+    ccmReadings[p.key].push({id:ccmReadingId, v:v.toFixed(1), d, h});
+    if(ccmReadings[p.key].length > 12) ccmReadings[p.key].shift();
+  });
+  if(ccmHist.labels.length > CCM_HIST_MAX){
+    ccmHist.labels.shift();
+    CCM_PHASES.forEach(p => ccmHist[p.key].shift());
+  }
+}
+
+function initCcmCharts(){
+  CCM_PHASES.forEach((p,i) => {
+    const cv = document.getElementById(p.chartId);
+    if(!cv) return;
+    ccmCharts[i] = new Chart(cv, {
+      type:'line',
+      data:{labels:ccmHist.labels, datasets:[{
+        label:p.label, data:ccmHist[p.key],
+        borderColor:'#4A90E2', backgroundColor:'rgba(74,144,226,.08)',
+        borderWidth:0.75, pointRadius:1, pointBackgroundColor:'#4A90E2',
+        tension:.4, fill:true
+      }]},
+      options:{
+        animation:false, responsive:true, maintainAspectRatio:false,
+        interaction:{mode:'index',intersect:false},
+        plugins:{legend:{display:false}},
+        scales:{
+          x:{ticks:{maxTicksLimit:5,font:{size:8},maxRotation:0},grid:{color:'#f0f0f0'}},
+          y:{ticks:{font:{size:8}},grid:{color:'#f0f0f0'}}
+        }
+      }
+    });
+  });
+}
+
+function updateCcmCharts(){
+  ccmCharts.forEach((c,i) => {
+    if(!c) return;
+    c.data.labels = ccmHist.labels;
+    c.data.datasets[0].data = ccmHist[CCM_PHASES[i].key];
+    c.update();
+  });
+}
+
+function buildCcmStructure(){
+  const wrap = document.getElementById('ccmPhases');
+  if(!wrap) return;
+  wrap.innerHTML = CCM_PHASES.map((p,i) => `<div class="ccm-col">
+    <div class="ccm-col-head">${p.label}</div>
+    <div class="ccm-top">
+      <div class="ccm-chart-wrap"><canvas id="${p.chartId}"></canvas></div>
+      <div class="ccm-gauge-big" id="ccmGaugeBig${i}"></div>
+    </div>
+    <div class="ccm-mid">
+      <div class="ccm-table-wrap">
+        <table class="ccm-table">
+          <thead><tr><th>id</th><th>${p.vKey}</th><th>Día</th><th>Hora</th></tr></thead>
+          <tbody id="ccmTbody${i}"></tbody>
+        </table>
+      </div>
+      <div class="ccm-gauge-sm" id="ccmGaugeSm${i}"></div>
+    </div>
+  </div>`).join('');
+}
+
+function renderCcm(){
+  CCM_PHASES.forEach((p,i) => {
+    const v = elec[p.vKey];
+    const curr = elec[p.iKey];
+    const vRound = Math.round(v);
+    // Large gauge
+    const gb = document.getElementById('ccmGaugeBig'+i);
+    if(gb) gb.innerHTML = `${semiGaugeSVG(v, 360, 440, '#4A90E2', 140, 80)}
+      <div class="sg-val">${vRound}</div>
+      <div class="sg-lbl">${p.label}</div>
+      <div class="sg-sub">${v.toFixed(1)}</div>
+      <div class="sg-site">EB 13 ZS — CCM</div>`;
+    // Table
+    const tb = document.getElementById('ccmTbody'+i);
+    if(tb){
+      const rows = ccmReadings[p.key].map((r,ri) =>
+        `<tr${ri===0?' style="background:#e8f0fe"':''}><td>${ri===0?'▸ ':''}<strong>${r.id}</strong></td><td>${r.v}</td><td>${r.d}</td><td>${r.h}</td></tr>`
+      ).reverse().join('');
+      tb.innerHTML = rows || '<tr><td colspan="4" style="text-align:center;color:#999">sin datos</td></tr>';
+    }
+    // Small gauge
+    const gs = document.getElementById('ccmGaugeSm'+i);
+    if(gs) gs.innerHTML = `${semiGaugeSVG(curr, 0, 25, '#4A90E2', 100, 56)}
+      <div class="sg-val">${curr.toFixed(0)}</div>
+      <div class="sg-lbl">${p.label}</div>
+      <div class="sg-sub">${v.toFixed(4)}</div>`;
+  });
+}
+
+function renderCcmStats(){
+  const wrap = document.getElementById('ccmStats');
+  if(!wrap) return;
+  const now = new Date();
+  const ts = now.toLocaleDateString('es-PY') + ' ' + now.toLocaleTimeString('es-PY',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+  const rows = CCM_PHASES.map(p => {
+    const s = ccmStatsAcc[p.key];
+    if(s.count < 2) return `<tr><td style="text-align:left"><strong>${p.label}</strong></td><td colspan="8" style="color:#999">Acumulando datos...</td></tr>`;
+    const mean = s.sum / s.count;
+    const stdDev = Math.sqrt((s.sumSq - s.sum*s.sum/s.count)/(s.count-1));
+    const z70=1.04, z20=1.28, z10=1.645;
+    return `<tr>
+      <td style="text-align:left"><strong>${p.label}</strong></td>
+      <td>${mean.toFixed(1)}</td><td>${s.max.toFixed(1)}</td><td>${s.min.toFixed(1)}</td><td>${stdDev.toFixed(1)}</td>
+      <td>${(mean+z70*stdDev).toFixed(1)} / ${(mean-z70*stdDev).toFixed(1)}</td>
+      <td>${(mean+z20*stdDev).toFixed(1)} / ${(mean-z20*stdDev).toFixed(1)}</td>
+      <td>${(mean+z10*stdDev).toFixed(1)} / ${(mean-z10*stdDev).toFixed(1)}</td>
+    </tr>`;
+  }).join('');
+  wrap.innerHTML = `
+    <table class="ccm-stats-tbl">
+      <thead><tr>
+        <th>${ts}</th><th>Media</th><th>Máximo</th><th>Mínimo</th><th>Desvío Est.</th>
+        <th>Máx/Mín Prob. 70%</th><th>Máx/Mín Prob. 20%</th><th>Máx/Mín Prob. 10%</th>
+      </tr></thead>
+      <tbody>${rows}</tbody>
+    </table>`;
+}
+
 function renderElec(){
-  document.getElementById("phases").innerHTML = `
-    <div class="ph"><div class="pn">L1</div><div class="pv">${elec.vL1.toFixed(1)} <small>V</small></div><div class="pv">${elec.iL1.toFixed(1)} <small>A</small></div></div>
-    <div class="ph"><div class="pn">L2</div><div class="pv">${elec.vL2.toFixed(1)} <small>V</small></div><div class="pv">${elec.iL2.toFixed(1)} <small>A</small></div></div>
-    <div class="ph"><div class="pn">L3</div><div class="pv">${elec.vL3.toFixed(1)} <small>V</small></div><div class="pv">${elec.iL3.toFixed(1)} <small>A</small></div></div>`;
+  renderCcm();
+  renderCcmStats();
   document.getElementById("elecSummary").innerHTML = `
     <div class="es"><span class="l">Pot. activa</span><span class="v">${elec.pAct.toFixed(1)} kW</span></div>
     <div class="es"><span class="l">Pot. reactiva</span><span class="v">${elec.pReact.toFixed(1)} kVAr</span></div>
@@ -1116,17 +1309,24 @@ function simulate(){
   elec.vL1=jitter(228.4,1.2); elec.vL2=jitter(229.7,1.2); elec.vL3=jitter(227.9,1.2);
   elec.iL1=jitter(15.1,0.5); elec.iL2=jitter(14.8,0.5); elec.iL3=jitter(15.4,0.5);
   elec.pAct=jitter(9.6,0.3); elec.pReact=jitter(3.1,0.15); elec.fp=Math.min(1,jitter(0.95,0.01));
+  // Line-to-line voltages
+  elec.vL1L2=+((elec.vL1+elec.vL2)/2*SQRT3).toFixed(1);
+  elec.vL3L2=+((elec.vL3+elec.vL2)/2*SQRT3).toFixed(1);
+  elec.vL3L1=+((elec.vL3+elec.vL1)/2*SQRT3).toFixed(1);
   const vmax=Math.max(elec.vL1,elec.vL2,elec.vL3), vmin=Math.min(elec.vL1,elec.vL2,elec.vL3), vavg=(elec.vL1+elec.vL2+elec.vL3)/3;
   elec.asimetria=((vmax-vmin)/vavg)*100;
   // Pozo: oscila entre arranque y parada
   wellLevel += (Math.random()-0.45)*0.06;
   wellLevel = Math.max(0.6, Math.min(4.2, wellLevel));
   renderPumps(); renderElec(); renderWell();
+  pushCcmHistory(); updateCcmCharts();
   pushHistory(); updateCharts(); updateMapPopup();
 }
 
 /* ====== Init ====== */
+buildCcmStructure();
 renderPumps(); renderElec(); renderWell(); renderAlarms(); tickClock(); initMap();
+pushCcmHistory(); initCcmCharts();
 pushHistory(); initCharts(); initWellZoneChart(); initWellGaussChart();
 setInterval(tickClock,1000);
 setInterval(simulate,2000);
