@@ -9,6 +9,7 @@
 <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@3.0.1/dist/chartjs-plugin-annotation.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/hammerjs@2.0.8/hammer.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1/dist/chartjs-plugin-zoom.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <style>
   :root{
     --celeste:#4A90E2;
@@ -68,6 +69,12 @@
   .st-ok{background:rgba(39,174,96,.12);color:var(--verde)}
   .st-ok .dot{background:var(--verde)}
   .st-al{background:rgba(231,76,60,.12);color:var(--rojo)}
+  .export-btn{
+    margin-top:4px;border:1px solid var(--celeste);background:#fff;color:var(--celeste);
+    font:inherit;font-size:11.5px;font-weight:700;padding:5px 14px;border-radius:6px;
+    cursor:pointer;transition:.15s;white-space:nowrap;
+  }
+  .export-btn:hover{background:var(--celeste);color:#fff}
   .st-al .dot{background:var(--rojo)}
 
   /* ===== Layout ===== */
@@ -320,6 +327,7 @@
     <div class="clock" id="clock">--:--:--</div>
     <div class="user">Usuario: <strong>operador.scada</strong></div>
     <div class="status-pill st-ok" id="genStatus"><span class="dot"></span> ESTACIÓN OPERATIVA</div>
+    <button class="export-btn" onclick="exportExcel()" title="Exportar datos de las últimas 24 horas a Excel">📊 Exportar Excel 24h</button>
   </div>
 </header>
 
@@ -1758,6 +1766,145 @@ function simulate(){
   pushHistory(); updateCharts(); updateMapPopup();
 }
 
+/* ====== Buffer 24h para exportación Excel (1 muestra/min, máx 1440) ====== */
+const EXCEL_MAX = 1440;
+const excelBuffer = {bombas:[], electrico:[], pozo:[], seguridad:[], comunicaciones:[]};
+
+function sampleForExcel(){
+  const now = new Date();
+  const ts = now.toLocaleString('es-PY',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit',second:'2-digit'});
+  const b1 = pumps[0];
+  const etaIdx = pumpCurveReal.findIndex((c,i)=>b1.q>=c.q&&i<pumpCurveReal.length-1&&b1.q<=pumpCurveReal[i+1].q);
+  const etaVal = etaIdx>=0 ? (()=>{const a=pumpCurveReal[etaIdx],b=pumpCurveReal[etaIdx+1]||a;const t=b.q>a.q?(b1.q-a.q)/(b.q-a.q):0;return +(a.eta+t*(b.eta-a.eta)).toFixed(1);})() : 0;
+  excelBuffer.bombas.push({
+    Timestamp:ts,
+    Bomba: b1.state==='run'?'B1 EN SERVICIO': b1.state==='off'?'B1 APAGADA':'B1 DEFECTO',
+    'Potencia (kW)': +b1.powN.toFixed(2),
+    'Corriente (A)': +b1.curN,
+    RPM: b1.rpm,
+    'Caudal (L/s)': b1.q,
+    'H manométrica (m)': +b1.pres.toFixed(2),
+    'η (%)': etaVal
+  });
+  excelBuffer.electrico.push({
+    Timestamp:ts,
+    'V L1/L2': elec.vL1L2,
+    'V L3/L2': elec.vL3L2,
+    'V L3/L1': elec.vL3L1,
+    'Pot. Activa (kW)': +elec.pAct.toFixed(2),
+    'Pot. Reactiva (kVAr)': +elec.pReact.toFixed(2),
+    'Factor Pot.': +elec.fp.toFixed(3),
+    'Frecuencia (Hz)': +elec.freq.toFixed(1),
+    'Asimetría (%)': +elec.asimetria.toFixed(2)
+  });
+  const wellZone = wellLevel<0.9?'Nivel muy bajo':wellLevel<2.5?'Parada bombas':wellLevel<3.5?'Arranque bombas':'Arranque 2da bomba';
+  excelBuffer.pozo.push({
+    Timestamp:ts,
+    'Nivel (m)': +wellLevel.toFixed(3),
+    Zona: wellZone
+  });
+  excelBuffer.seguridad.push({
+    Timestamp:ts,
+    'V Alim. Cargador (VCA)': +secData.vAlim.toFixed(2),
+    'V Salida Cargador (VCC)': +secData.vSalCarg.toFixed(2),
+    'V Salida Baterías (VCC)': +secData.vSalBat.toFixed(2),
+    'V Estabilizador (VCC)': +secData.vEstab.toFixed(2),
+    'Autonomía (min)': +secData.autoMin.toFixed(1)
+  });
+  const regMap={0:'No registrado',1:'Red local',5:'Roaming'};
+  const tecMap={2:'2G GPRS/EDGE',3:'3G UMTS/HSPA',4:'4G LTE'};
+  excelBuffer.comunicaciones.push({
+    Timestamp:ts,
+    'RSSI (dBm)': Math.round(commData.rssi),
+    'RSRP (dBm)': Math.round(commData.rsrp),
+    'RSRQ (dB)': +commData.rsrq.toFixed(1),
+    'Latencia (ms)': Math.round(commData.latencia),
+    Registro: regMap[commData.registro]||'Desconocido',
+    Tecnología: tecMap[commData.tecnologia]||'Desconocido',
+    'Datos Env (MB)': +commData.datosEnv.toFixed(2),
+    'Datos Rec (GB)': +commData.datosRec.toFixed(3)
+  });
+  Object.keys(excelBuffer).forEach(k=>{
+    if(excelBuffer[k].length>EXCEL_MAX) excelBuffer[k].shift();
+  });
+}
+
+function buildStatsSheet(){
+  const rows = [];
+  const calcStats = (arr, key) => {
+    const vals = arr.map(r=>r[key]).filter(v=>typeof v==='number');
+    if(!vals.length) return {Media:'—',Máximo:'—',Mínimo:'—','Desvío Est.':'—','Prob. 70%':'—','Prob. 20%':'—','Prob. 10%':'—'};
+    const n=vals.length, sum=vals.reduce((a,b)=>a+b,0), mean=sum/n;
+    const mx=Math.max(...vals), mn=Math.min(...vals);
+    const sd=n>1?Math.sqrt(vals.reduce((a,v)=>a+(v-mean)**2,0)/(n-1)):0;
+    const dec = key.includes('dB')||key.includes('η')||key.includes('VCC')?1:key.includes('Factor')?3:2;
+    return {
+      Media:+mean.toFixed(dec), Máximo:+mx.toFixed(dec), Mínimo:+mn.toFixed(dec),
+      'Desvío Est.':+sd.toFixed(dec),
+      'Prob. 70%': `${(mean+1.04*sd).toFixed(dec)} / ${(mean-1.04*sd).toFixed(dec)}`,
+      'Prob. 20%': `${(mean+1.28*sd).toFixed(dec)} / ${(mean-1.28*sd).toFixed(dec)}`,
+      'Prob. 10%': `${(mean+1.645*sd).toFixed(dec)} / ${(mean-1.645*sd).toFixed(dec)}`
+    };
+  };
+  const addStats = (label, arr, key) => {
+    const s = calcStats(arr, key);
+    rows.push({Parámetro:label, ...s});
+  };
+  addStats('Potencia B1 (kW)', excelBuffer.bombas, 'Potencia (kW)');
+  addStats('Corriente B1 (A)', excelBuffer.bombas, 'Corriente (A)');
+  addStats('RPM B1', excelBuffer.bombas, 'RPM');
+  addStats('Caudal B1 (L/s)', excelBuffer.bombas, 'Caudal (L/s)');
+  addStats('H manométrica B1 (m)', excelBuffer.bombas, 'H manométrica (m)');
+  addStats('η B1 (%)', excelBuffer.bombas, 'η (%)');
+  addStats('V L1/L2', excelBuffer.electrico, 'V L1/L2');
+  addStats('V L3/L2', excelBuffer.electrico, 'V L3/L2');
+  addStats('V L3/L1', excelBuffer.electrico, 'V L3/L1');
+  addStats('Pot. Activa (kW)', excelBuffer.electrico, 'Pot. Activa (kW)');
+  addStats('Factor Pot.', excelBuffer.electrico, 'Factor Pot.');
+  addStats('Nivel Pozo (m)', excelBuffer.pozo, 'Nivel (m)');
+  addStats('V Alim. Cargador (VCA)', excelBuffer.seguridad, 'V Alim. Cargador (VCA)');
+  addStats('V Salida Cargador (VCC)', excelBuffer.seguridad, 'V Salida Cargador (VCC)');
+  addStats('V Salida Baterías (VCC)', excelBuffer.seguridad, 'V Salida Baterías (VCC)');
+  addStats('Autonomía (min)', excelBuffer.seguridad, 'Autonomía (min)');
+  addStats('RSSI (dBm)', excelBuffer.comunicaciones, 'RSSI (dBm)');
+  addStats('RSRP (dBm)', excelBuffer.comunicaciones, 'RSRP (dBm)');
+  addStats('RSRQ (dB)', excelBuffer.comunicaciones, 'RSRQ (dB)');
+  addStats('Latencia (ms)', excelBuffer.comunicaciones, 'Latencia (ms)');
+  return rows;
+}
+
+function exportExcel(){
+  if(excelBuffer.bombas.length===0){
+    alert('Aún no hay datos acumulados. Los datos se registran cada 1 minuto. Por favor espere al menos 1 minuto.');
+    return;
+  }
+  const wb = XLSX.utils.book_new();
+  const addSheet = (name, data) => {
+    const ws = XLSX.utils.json_to_sheet(data);
+    const cols = Object.keys(data[0]||{}).map(k=>({wch: Math.max(k.length+2, 14)}));
+    ws['!cols'] = cols;
+    XLSX.utils.book_append_sheet(wb, ws, name);
+  };
+  addSheet('Bombas', excelBuffer.bombas);
+  addSheet('Tablero Eléctrico', excelBuffer.electrico);
+  addSheet('Pozo de Bombeo', excelBuffer.pozo);
+  addSheet('Seguridad', excelBuffer.seguridad);
+  addSheet('Comunicaciones', excelBuffer.comunicaciones);
+  const alarmData = alarms.map(a=>({
+    Código: a.code,
+    Severidad: a.sev==='critico'?'Crítico':a.sev==='adv'?'Advertencia':'Información',
+    Tipo: a.tipo,
+    Descripción: a.desc,
+    'Fecha/Hora': a.ts,
+    Estado: a.ack?'Reconocida':'Activa'
+  }));
+  addSheet('Alarmas', alarmData.length?alarmData:[{Código:'—',Severidad:'—',Tipo:'—',Descripción:'Sin alarmas',['Fecha/Hora']:'—',Estado:'—'}]);
+  addSheet('Estadísticas', buildStatsSheet());
+  const now = new Date();
+  const dateStr = now.toISOString().slice(0,10);
+  XLSX.writeFile(wb, `EB13ZS_Informe_${dateStr}.xlsx`);
+}
+
 /* ====== Init ====== */
 buildCcmStructure(); buildSecStructure(); buildCommStructure();
 renderPumps(); renderElec(); renderSec(); renderSecStats(); renderSecStatus(); renderComm(); renderCommStats(); renderCommStatus(); renderWell(); renderAlarms(); tickClock(); initMap();
@@ -1765,8 +1912,10 @@ pushCcmHistory(); initCcmCharts();
 pushSecHistory(); initSecCharts();
 pushCommHistory(); initCommCharts();
 pushHistory(); initCharts(); initWellZoneChart(); initWellGaussChart();
+sampleForExcel();
 setInterval(tickClock,1000);
 setInterval(simulate,2000);
+setInterval(sampleForExcel, 60000);
 </script>
 </body>
 </html>
