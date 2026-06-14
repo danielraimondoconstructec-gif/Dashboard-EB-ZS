@@ -1294,12 +1294,12 @@ const commData = {
 };
 
 const COMM_PHASES = [
-  {key:'rssi',      label:'RSSI — Nivel Señal',   unit:'dBm', vKey:'rssi',      min:-120, max:0,  gaugeMin:-120, gaugeMax:0,   chartId:'commChart0', dec:0,
-   zones:[{from:-120,to:-100,color:'#E74C3C'},{from:-100,to:-75,color:'#F39C12'},{from:-75,to:-55,color:'#27AE60'},{from:-55,to:-30,color:'#F39C12'},{from:-30,to:0,color:'#E74C3C'}]},
-  {key:'rsrp',      label:'RSRP — Potencia',      unit:'dBm', vKey:'rsrp',      min:-140, max:-44, gaugeMin:-140, gaugeMax:0,  chartId:'commChart1', dec:0,
-   zones:[{from:-140,to:-110,color:'#E74C3C'},{from:-110,to:-100,color:'#F39C12'},{from:-100,to:-80,color:'#27AE60'},{from:-80,to:-44,color:'#F39C12'}]},
-  {key:'rsrq',      label:'RSRQ — Calidad',       unit:'dB',  vKey:'rsrq',      min:-20,  max:0,  gaugeMin:-20,  gaugeMax:0,   chartId:'commChart2', dec:1,
-   zones:[{from:-20,to:-14,color:'#E74C3C'},{from:-14,to:-10,color:'#F39C12'},{from:-10,to:-5,color:'#27AE60'},{from:-5,to:0,color:'#F39C12'}]},
+  {key:'rssi',      label:'RSSI — Nivel Señal',   unit:'dBm', vKey:'rssi',      min:-120, max:0,  gaugeMin:0, gaugeMax:120, absGauge:true, chartId:'commChart0', dec:0,
+   zones:[{from:0,to:30,color:'#E74C3C'},{from:30,to:55,color:'#F39C12'},{from:55,to:75,color:'#27AE60'},{from:75,to:100,color:'#F39C12'},{from:100,to:120,color:'#E74C3C'}]},
+  {key:'rsrp',      label:'RSRP — Potencia',      unit:'dBm', vKey:'rsrp',      min:-140, max:-44, gaugeMin:0, gaugeMax:140, absGauge:true, chartId:'commChart1', dec:0,
+   zones:[{from:0,to:44,color:'#F39C12'},{from:44,to:80,color:'#27AE60'},{from:80,to:100,color:'#F39C12'},{from:100,to:110,color:'#E74C3C'},{from:110,to:140,color:'#E74C3C'}]},
+  {key:'rsrq',      label:'RSRQ — Calidad',       unit:'dB',  vKey:'rsrq',      min:-20,  max:0,  gaugeMin:0, gaugeMax:20,  absGauge:true, chartId:'commChart2', dec:1,
+   zones:[{from:0,to:5,color:'#F39C12'},{from:5,to:10,color:'#27AE60'},{from:10,to:14,color:'#F39C12'},{from:14,to:20,color:'#E74C3C'}]},
   {key:'latencia',  label:'Latencia',              unit:'ms',  vKey:'latencia',  min:0,    max:200, gaugeMin:0,   gaugeMax:200, chartId:'commChart3', dec:0,
    zones:[{from:0,to:50,color:'#27AE60'},{from:50,to:100,color:'#F39C12'},{from:100,to:200,color:'#E74C3C'}]},
   {key:'throughput', label:'Throughput',            unit:'Mbps',vKey:'throughput', min:0,   max:10,  gaugeMin:0,   gaugeMax:10,  chartId:'commChart4', dec:1,
@@ -1401,8 +1401,9 @@ function renderComm(){
     const v = commData[p.vKey];
     const vDisplay = v.toFixed(p.dec);
     const vRound = p.dec===0 ? Math.round(v) : v.toFixed(1);
+    const gVal = p.absGauge ? Math.abs(v) : v;
     const gb = document.getElementById('commGaugeBig'+i);
-    if(gb) gb.innerHTML = `${angularGaugeSVG(v, p.gaugeMin, p.gaugeMax, '#F39C12', 130, 100, p.zones)}
+    if(gb) gb.innerHTML = `${angularGaugeSVG(gVal, p.gaugeMin, p.gaugeMax, '#F39C12', 130, 100, p.zones)}
       <div class="sg-val">${vRound}</div>
       <div class="sg-lbl">${p.unit}</div>
       <div class="sg-sub" style="color:#F39C12">${vDisplay}</div>
