@@ -229,8 +229,8 @@
   .sec-col-head{font-size:12px;font-weight:700;padding:7px 8px;color:var(--gris-oscuro);text-align:center;border-bottom:1px solid #e0e0e0}
   .sec-top{display:grid;grid-template-columns:1fr auto;gap:6px;padding:8px;align-items:center}
   .sec-chart-wrap{position:relative;height:90px;min-width:0}
-  .sec-gauge-big{display:flex;flex-direction:column;align-items:center;min-width:100px}
-  .sec-gauge-big .sg-val{font-size:26px;font-weight:700;color:var(--gris-oscuro);margin-top:-4px}
+  .sec-gauge-big{display:flex;flex-direction:column;align-items:center;min-width:130px}
+  .sec-gauge-big .sg-val{font-size:26px;font-weight:700;color:var(--gris-oscuro);margin-top:-8px}
   .sec-gauge-big .sg-lbl{font-size:9px;color:var(--gris-medio);font-weight:600;text-transform:uppercase;margin-top:1px}
   .sec-gauge-big .sg-sub{font-size:11px;font-weight:700;color:var(--verde);margin-top:1px}
   .sec-gauge-big .sg-site{font-size:8px;color:var(--gris-medio);margin-top:1px}
@@ -887,6 +887,55 @@ function semiGaugeSVG(value, min, max, color, w, h){
   </svg>`;
 }
 
+function angularGaugeSVG(value, min, max, color, w, h, zones){
+  const cx=w/2, cy=h*0.78, rOuter=w*0.42, rInner=rOuter*0.78;
+  const startA=Math.PI*1.25, endA=-Math.PI*0.25, sweep=endA-startA;
+  const pct=Math.max(0,Math.min(1,(value-min)/(max-min)));
+  const swOuter=w*0.045, swInner=w*0.03;
+  function arcPt(r,a){return{x:cx+r*Math.cos(a),y:cy+r*Math.sin(a)}}
+  function arcPath(r,a1,a2){
+    const s=arcPt(r,a1),e=arcPt(r,a2);
+    const da=a2-a1; const la=Math.abs(da)>Math.PI?1:0;
+    return `M ${s.x.toFixed(1)} ${s.y.toFixed(1)} A ${r} ${r} 0 ${la} 0 ${e.x.toFixed(1)} ${e.y.toFixed(1)}`;
+  }
+  let zonePaths='';
+  if(zones&&zones.length){
+    zones.forEach(z=>{
+      const p1=Math.max(0,Math.min(1,(z.from-min)/(max-min)));
+      const p2=Math.max(0,Math.min(1,(z.to-min)/(max-min)));
+      const a1=startA+p1*sweep, a2=startA+p2*sweep;
+      zonePaths+=`<path d="${arcPath(rOuter,a1,a2)}" fill="none" stroke="${z.color}" stroke-width="${swOuter}" stroke-linecap="butt" opacity="0.85"/>`;
+    });
+  }else{
+    zonePaths=`<path d="${arcPath(rOuter,startA,endA)}" fill="none" stroke="#e0e0e0" stroke-width="${swOuter}" stroke-linecap="round"/>`;
+  }
+  const innerFillA=startA+pct*sweep;
+  const innerTrack=`<path d="${arcPath(rInner,startA,endA)}" fill="none" stroke="#e8e8e8" stroke-width="${swInner}" stroke-linecap="round"/>`;
+  const innerFill=pct>0.01?`<path d="${arcPath(rInner,startA,innerFillA)}" fill="none" stroke="${color}" stroke-width="${swInner}" stroke-linecap="round"/>`:'';
+  let ticks='';
+  const nTicks=5;
+  for(let i=0;i<=nTicks;i++){
+    const t=i/nTicks, a=startA+t*sweep;
+    const p1=arcPt(rOuter+swOuter*0.6,a), p2=arcPt(rOuter+swOuter*1.5,a);
+    const pL=arcPt(rOuter+swOuter*2.4,a);
+    const lbl=min+(max-min)*t;
+    const lblTxt=lbl===Math.round(lbl)?lbl.toFixed(0):lbl.toFixed(1);
+    ticks+=`<line x1="${p1.x.toFixed(1)}" y1="${p1.y.toFixed(1)}" x2="${p2.x.toFixed(1)}" y2="${p2.y.toFixed(1)}" stroke="#888" stroke-width="1"/>`;
+    ticks+=`<text x="${pL.x.toFixed(1)}" y="${pL.y.toFixed(1)}" font-size="${w*0.06}" fill="#888" text-anchor="middle" dominant-baseline="middle">${lblTxt}</text>`;
+  }
+  const needleA=startA+pct*sweep;
+  const nLen=rOuter*0.85, nBase=w*0.025;
+  const tip=arcPt(nLen,needleA);
+  const bPerp=needleA+Math.PI/2;
+  const b1={x:cx+nBase*Math.cos(bPerp),y:cy+nBase*Math.sin(bPerp)};
+  const b2={x:cx-nBase*Math.cos(bPerp),y:cy-nBase*Math.sin(bPerp)};
+  const needle=`<polygon points="${tip.x.toFixed(1)},${tip.y.toFixed(1)} ${b1.x.toFixed(1)},${b1.y.toFixed(1)} ${b2.x.toFixed(1)},${b2.y.toFixed(1)}" fill="${color}" opacity="0.9"/>`;
+  const hub=`<circle cx="${cx}" cy="${cy}" r="${w*0.04}" fill="#555"/><circle cx="${cx}" cy="${cy}" r="${w*0.02}" fill="#fff"/>`;
+  return `<svg viewBox="0 0 ${w} ${h}" width="${w}" height="${h}">
+    ${zonePaths}${innerTrack}${innerFill}${ticks}${needle}${hub}
+  </svg>`;
+}
+
 function pushCcmHistory(){
   const now = new Date();
   const ts = now.toLocaleTimeString('es-PY',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
@@ -1044,11 +1093,16 @@ const secData = {
 };
 
 const SEC_PHASES = [
-  {key:'vAlim',    label:'V Alim. Cargador',     unit:'VCA', vKey:'vAlim',    min:200, max:240, gaugeMin:200, gaugeMax:240, chartId:'secChart0'},
-  {key:'vSalCarg', label:'V Salida Cargador',     unit:'VCC', vKey:'vSalCarg', min:23.5,max:25,  gaugeMin:23, gaugeMax:25.5, chartId:'secChart1'},
-  {key:'vSalBat',  label:'V Salida Baterías',     unit:'VCC', vKey:'vSalBat',  min:23,  max:25,  gaugeMin:23, gaugeMax:25.5, chartId:'secChart2'},
-  {key:'vEstab',   label:'V Estabilizador',        unit:'VCC', vKey:'vEstab',   min:23,  max:25,  gaugeMin:23, gaugeMax:25.5, chartId:'secChart3'},
-  {key:'autoMin',  label:'Autonomía Batería',      unit:'min', vKey:'autoMin',  min:0,   max:65,  gaugeMin:0,  gaugeMax:60,   chartId:'secChart4'}
+  {key:'vAlim',    label:'V Alim. Cargador',     unit:'VCA', vKey:'vAlim',    min:200, max:240, gaugeMin:0, gaugeMax:250, chartId:'secChart0',
+   zones:[{from:0,to:200,color:'#E74C3C'},{from:200,to:214,color:'#F39C12'},{from:214,to:220,color:'#27AE60'},{from:220,to:240,color:'#F39C12'},{from:240,to:250,color:'#E74C3C'}]},
+  {key:'vSalCarg', label:'V Salida Cargador',     unit:'VCC', vKey:'vSalCarg', min:23.5,max:25,  gaugeMin:0, gaugeMax:30, chartId:'secChart1',
+   zones:[{from:0,to:22,color:'#E74C3C'},{from:22,to:24.1,color:'#F39C12'},{from:24.1,to:24.2,color:'#27AE60'},{from:24.2,to:26,color:'#F39C12'},{from:26,to:30,color:'#E74C3C'}]},
+  {key:'vSalBat',  label:'V Salida Baterías',     unit:'VCC', vKey:'vSalBat',  min:23,  max:25,  gaugeMin:0, gaugeMax:30, chartId:'secChart2',
+   zones:[{from:0,to:22,color:'#E74C3C'},{from:22,to:23.9,color:'#F39C12'},{from:23.9,to:24.1,color:'#27AE60'},{from:24.1,to:26,color:'#F39C12'},{from:26,to:30,color:'#E74C3C'}]},
+  {key:'vEstab',   label:'V Estabilizador',        unit:'VCC', vKey:'vEstab',   min:23,  max:25,  gaugeMin:0, gaugeMax:30, chartId:'secChart3',
+   zones:[{from:0,to:22,color:'#E74C3C'},{from:22,to:23.9,color:'#F39C12'},{from:23.9,to:24.1,color:'#27AE60'},{from:24.1,to:26,color:'#F39C12'},{from:26,to:30,color:'#E74C3C'}]},
+  {key:'autoMin',  label:'Autonomía Batería',      unit:'min', vKey:'autoMin',  min:0,   max:65,  gaugeMin:0,  gaugeMax:60,   chartId:'secChart4',
+   zones:[{from:0,to:15,color:'#E74C3C'},{from:15,to:30,color:'#F39C12'},{from:30,to:45,color:'#82C91E'},{from:45,to:60,color:'#27AE60'}]}
 ];
 
 const SEC_HIST_MAX = 120;
@@ -1147,10 +1201,10 @@ function renderSec(){
     const vDisplay = p.unit==='min' ? v.toFixed(1) : v.toFixed(2);
     const vRound = p.unit==='min' ? Math.round(v) : v.toFixed(1);
     const gb = document.getElementById('secGaugeBig'+i);
-    if(gb) gb.innerHTML = `${semiGaugeSVG(v, p.gaugeMin, p.gaugeMax, '#27AE60', 120, 68)}
+    if(gb) gb.innerHTML = `${angularGaugeSVG(v, p.gaugeMin, p.gaugeMax, '#27AE60', 130, 100, p.zones)}
       <div class="sg-val">${vRound}</div>
       <div class="sg-lbl">${p.unit}</div>
-      <div class="sg-sub">${vDisplay}</div>
+      <div class="sg-sub" style="color:#27AE60">${vDisplay}</div>
       <div class="sg-site">EB 13 ZS</div>`;
     const tb = document.getElementById('secTbody'+i);
     if(tb){
