@@ -75,6 +75,14 @@
     cursor:pointer;transition:.15s;white-space:nowrap;
   }
   .export-btn:hover{background:var(--celeste);color:#fff}
+  .sp-control{display:flex;align-items:center;gap:10px;margin:8px 0;padding:8px 12px;background:#F8F9FA;border-radius:6px;font-size:11px}
+  .sp-control label{font-weight:600;color:var(--gris-oscuro);white-space:nowrap}
+  .sp-control input[type=range]{flex:1;height:4px;accent-color:var(--celeste);cursor:pointer}
+  .sp-control .sp-val{font-weight:700;color:var(--celeste);min-width:52px;text-align:center}
+  .sp-control .sp-eta{font-size:10px;color:var(--gris-medio);white-space:nowrap}
+  .pump-event-log{font-size:10px;color:var(--gris-medio);margin-top:4px;max-height:36px;overflow-y:auto;line-height:1.3}
+  .pump-event-log .ev-on{color:var(--verde);font-weight:600}
+  .pump-event-log .ev-off{color:var(--celeste);font-weight:600}
   .st-al .dot{background:var(--rojo)}
 
   /* ===== Layout ===== */
@@ -360,6 +368,13 @@
               <div class="v"><span id="wellLevel">2.75</span> m</div>
             </div>
             <div class="well-chart-wrap"><canvas id="wellZoneChart"></canvas></div>
+            <div class="sp-control">
+              <label>Set Point arranque 2da bomba:</label>
+              <input type="range" id="spSlider" min="1.5" max="3.9" step="0.1" value="3.5">
+              <span class="sp-val" id="spValue">3.50 m</span>
+              <span class="sp-eta">η B1: <strong id="spEtaDisplay">72%</strong></span>
+            </div>
+            <div class="pump-event-log" id="pumpEventLog"></div>
           </div>
           <!-- Parte 2: Análisis estadístico histórico -->
           <div class="well-section">
@@ -1485,19 +1500,26 @@ function renderCommStatus(){
 
 /* ====== Hidráulico ====== */
 let wellLevel = 2.75; // m
-const WELL_MAX = 3.9;
+let spB2 = 3.5; // set point arranque 2da bomba (m) — ajustable
 const WELL_HISTORY_LEN = 60;
 const wellTimeSeries = [];
 const wellAllHistory = [];
 let wellZoneChart = null;
 let wellGaussChart = null;
+const pumpEvents = [];
+const PUMP_EVENTS_MAX = 8;
 
-const WELL_ZONES = [
-  {min:0, max:0.9, label:'Nivel muy bajo', color:'rgba(229,115,115,.15)', border:'#E57373'},
-  {min:0.9, max:2.5, label:'Parada de bombas', color:'rgba(129,199,132,.12)', border:'#81C784'},
-  {min:2.5, max:3.5, label:'Arranque de bombas', color:'rgba(255,183,77,.12)', border:'#FFB74D'},
-  {min:3.5, max:3.9, label:'Arranque 2da bomba', color:'rgba(229,115,115,.12)', border:'#E57373'}
-];
+function calcWellZones(sp){
+  const wmax = Math.min(4.2, sp + 0.4);
+  return [
+    {min:0, max:+(sp*0.257).toFixed(2), label:'Nivel muy bajo', color:'rgba(229,115,115,.15)', border:'#E57373'},
+    {min:+(sp*0.257).toFixed(2), max:+(sp*0.714).toFixed(2), label:'Parada de bombas', color:'rgba(129,199,132,.12)', border:'#81C784'},
+    {min:+(sp*0.714).toFixed(2), max:+sp.toFixed(2), label:'Arranque de bombas', color:'rgba(255,183,77,.12)', border:'#FFB74D'},
+    {min:+sp.toFixed(2), max:+wmax.toFixed(2), label:'Arranque 2da bomba', color:'rgba(229,115,115,.12)', border:'#E57373'}
+  ];
+}
+let WELL_ZONES = calcWellZones(spB2);
+function getWellMax(){ return Math.min(4.2, spB2 + 0.4); }
 
 function initWellZoneChart(){
   const cv = document.getElementById('wellZoneChart');
@@ -1546,11 +1568,34 @@ function initWellZoneChart(){
           title:{display:true, text:'Nivel (m)', font:{size:7}, color:'#B0B0B0'},
           grid:{color:'rgba(0,0,0,.04)'},
           ticks:{font:{size:7}, color:'#B0B0B0'},
-          min:0, max:4.0
+          min:0, max:getWellMax()+0.2
         }
       }
     }
   });
+}
+
+function updateWellZoneAnnotations(){
+  if(!wellZoneChart) return;
+  WELL_ZONES = calcWellZones(spB2);
+  const ann = wellZoneChart.options.plugins.annotation.annotations;
+  WELL_ZONES.forEach((z,i)=>{
+    if(ann['zone'+i]){
+      ann['zone'+i].yMin = z.min;
+      ann['zone'+i].yMax = z.max;
+      ann['zone'+i].label.content = z.label;
+    }
+  });
+  wellZoneChart.options.scales.y.max = getWellMax()+0.2;
+  wellZoneChart.update('none');
+  // Update stat labels
+  const z = WELL_ZONES;
+  const lbl70 = document.querySelector('#statPct70')?.closest('.well-stat')?.querySelector('.lbl');
+  const lbl20 = document.querySelector('#statPct20')?.closest('.well-stat')?.querySelector('.lbl');
+  const lbl10 = document.querySelector('#statPct10')?.closest('.well-stat')?.querySelector('.lbl');
+  if(lbl70) lbl70.textContent = `Normal (${z[1].min}–${z[1].max} m)`;
+  if(lbl20) lbl20.textContent = `Arranque (${z[2].min}–${z[2].max} m)`;
+  if(lbl10) lbl10.textContent = `Crítico (${z[3].min}–${z[3].max} m)`;
 }
 
 function initWellGaussChart(){
@@ -1599,15 +1644,16 @@ function initWellGaussChart(){
 function updateWellStats(){
   if(wellAllHistory.length < 5) return;
   const total = wellAllHistory.length;
-  const normal = wellAllHistory.filter(v=>v>=0.9 && v<2.5).length;
-  const arranque = wellAllHistory.filter(v=>v>=2.5 && v<3.5).length;
-  const critico = wellAllHistory.filter(v=>v>=3.5).length;
+  const z = WELL_ZONES;
+  const normal = wellAllHistory.filter(v=>v>=z[1].min && v<z[1].max).length;
+  const arranque = wellAllHistory.filter(v=>v>=z[2].min && v<z[2].max).length;
+  const critico = wellAllHistory.filter(v=>v>=z[3].min).length;
   document.getElementById('statPct70').textContent = Math.round(normal/total*100)+'%';
   document.getElementById('statPct20').textContent = Math.round(arranque/total*100)+'%';
   document.getElementById('statPct10').textContent = Math.round(critico/total*100)+'%';
   // Campana de Gauss (histograma step-line)
   const bins = 20;
-  const binW = 4.0/bins;
+  const binW = (getWellMax()+0.2)/bins;
   const counts = Array(bins).fill(0);
   wellAllHistory.forEach(v=>{
     const idx = Math.min(bins-1, Math.max(0, Math.floor(v/binW)));
@@ -1716,26 +1762,108 @@ function tickClock(){
 
 /* ====== Simulación tiempo real ====== */
 function jitter(v,amp){return v + (Math.random()-0.5)*amp;}
+const WELL_AREA = 4.0;       // m² sección del pozo
+const INFLOW_BASE = 22;      // L/s caudal de ingreso base
+const SIM_DT = 2;            // segundos por tick de simulación
+const ETA_START_B2 = 70;     // η% umbral para arranque B2
+const ETA_STOP_B2 = 72;      // η% umbral para parada B2 (histéresis)
+
+function addPumpEvent(msg){
+  const d = new Date();
+  const ts = d.toLocaleTimeString('es-PY',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+  pumpEvents.push({ts, msg});
+  if(pumpEvents.length > PUMP_EVENTS_MAX) pumpEvents.shift();
+  const el = document.getElementById('pumpEventLog');
+  if(el) el.innerHTML = pumpEvents.map(e=>`<div>${e.ts} — ${e.msg}</div>`).join('');
+}
+
+function interpolatePump(p){
+  let hi=0; for(let i=0;i<pumpCurveReal.length-1;i++){if(p.q>=pumpCurveReal[i].q&&p.q<=pumpCurveReal[i+1].q){hi=i;break;}}
+  const a=pumpCurveReal[hi], b=pumpCurveReal[hi+1]||a;
+  const t=b.q>a.q?(p.q-a.q)/(b.q-a.q):0;
+  p.pres = +(a.h+t*(b.h-a.h)+jitter(0,0.08)).toFixed(2);
+  p.powN = +(a.p1+t*(b.p1-a.p1)+jitter(0,0.15)).toFixed(2);
+  p.curN = +(p.powN*1.88+jitter(0,0.3)).toFixed(1);
+  p.rpm  = Math.round(jitter(1455,12));
+}
+
 function simulate(){
-  // Bomba en servicio: pequeñas variaciones
-  pumps.forEach(p=>{
-    if(p.state==="run"){
-      p.q    = Math.max(1, Math.min(50, Math.round(jitter(25,2))));
-      // Interpolar valores reales de la curva según Q actual
-      let hi=0; for(let i=0;i<pumpCurveReal.length-1;i++){if(p.q>=pumpCurveReal[i].q&&p.q<=pumpCurveReal[i+1].q){hi=i;break;}}
-      const a=pumpCurveReal[hi], b=pumpCurveReal[hi+1]||a;
-      const t=b.q>a.q?(p.q-a.q)/(b.q-a.q):0;
-      p.pres = +(a.h+t*(b.h-a.h)+jitter(0,0.08)).toFixed(2);
-      p.powN = +(a.p1+t*(b.p1-a.p1)+jitter(0,0.15)).toFixed(2);
-      p.curN = +(p.powN*1.88+jitter(0,0.3)).toFixed(1); // I≈P1×1.88 (motor 3ph 400V)
-      p.rpm  = Math.round(jitter(1455,12));
+  const z = WELL_ZONES;
+  const arranqueB1 = z[2].min;   // nivel arranque 1ra bomba
+  const paradaB1   = z[1].max;   // nivel parada bombas (= arranqueB1)
+  const nivelMuyBajo = z[0].max;
+
+  // === Hidráulico: nivel del pozo ===
+  const inflow = Math.max(0, jitter(INFLOW_BASE, 4)) / 1000; // m³/s
+  let outflow = 0;
+  pumps.forEach(p=>{ if(p.state==="run") outflow += (p.q / 1000); });
+  const dLevel = (inflow - outflow) / WELL_AREA * SIM_DT;
+  wellLevel += dLevel;
+  wellLevel = Math.max(0.3, Math.min(getWellMax()+0.1, wellLevel));
+
+  // === Control automático B1 por nivel ===
+  if(pumps[0].state==="off" && wellLevel >= arranqueB1){
+    pumps[0].state = "run"; pumps[0].sel = "auto";
+    addPumpEvent('<span class="ev-on">▶ B1 ARRANQUE</span> — Nivel '+wellLevel.toFixed(2)+' m ≥ '+arranqueB1+' m');
+  }
+  if(pumps[0].state==="run" && wellLevel <= nivelMuyBajo){
+    pumps[0].state = "off"; pumps[0].powN=0; pumps[0].curN=0; pumps[0].rpm=0; pumps[0].q=0; pumps[0].pres=0;
+    addPumpEvent('<span class="ev-off">■ B1 PARADA</span> — Nivel '+wellLevel.toFixed(2)+' m ≤ '+nivelMuyBajo+' m');
+  }
+
+  // === Caudal B1 en función del nivel (mayor nivel → mayor demanda) ===
+  if(pumps[0].state==="run"){
+    const demandFactor = Math.max(0, Math.min(1, (wellLevel - nivelMuyBajo) / (spB2 - nivelMuyBajo)));
+    const qBase = 18 + demandFactor * 22; // Q varía de 18 a 40 L/s según nivel
+    const nRunning = pumps.filter(p=>p.state==="run").length;
+    // Si B2 también corre, cada bomba toma la mitad de la demanda
+    pumps[0].q = Math.max(5, Math.min(50, Math.round(jitter(qBase / nRunning, 1))));
+    interpolatePump(pumps[0]);
+  }
+
+  // === Control B2 basado en η de B1 ===
+  const etaB1 = pumps[0].state==="run" ? getEtaAtQ(pumps[0].q) : 72;
+  if(pumps[0].state==="run" && pumps[1].state==="off" && etaB1 < ETA_START_B2){
+    pumps[1].state = "run"; pumps[1].sel = "auto"; pumps[1].termo = true;
+    addPumpEvent('<span class="ev-on">▶ B2 ARRANQUE</span> — η B1='+etaB1.toFixed(0)+'% < '+ETA_START_B2+'%');
+    // Recalcular Q repartido
+    const nRunning = 2;
+    const qBase = 18 + Math.max(0, Math.min(1, (wellLevel - nivelMuyBajo) / (spB2 - nivelMuyBajo))) * 22;
+    pumps[0].q = Math.max(5, Math.min(50, Math.round(jitter(qBase / nRunning, 1))));
+    pumps[1].q = Math.max(5, Math.min(50, Math.round(jitter(qBase / nRunning, 1))));
+    interpolatePump(pumps[0]);
+    interpolatePump(pumps[1]);
+  }
+  if(pumps[1].state==="run"){
+    const etaB1now = getEtaAtQ(pumps[0].q);
+    if(etaB1now >= ETA_STOP_B2 && wellLevel < spB2){
+      pumps[1].state = "off"; pumps[1].powN=0; pumps[1].curN=0; pumps[1].rpm=0; pumps[1].q=0; pumps[1].pres=0;
+      addPumpEvent('<span class="ev-off">■ B2 PARADA</span> — η B1='+etaB1now.toFixed(0)+'% ≥ '+ETA_STOP_B2+'%');
+    } else {
+      // B2 sigue corriendo — actualizar sus valores
+      const nRunning = pumps.filter(p=>p.state==="run").length;
+      const qBase = 18 + Math.max(0, Math.min(1, (wellLevel - nivelMuyBajo) / (spB2 - nivelMuyBajo))) * 22;
+      pumps[0].q = Math.max(5, Math.min(50, Math.round(jitter(qBase / nRunning, 1))));
+      pumps[1].q = Math.max(5, Math.min(50, Math.round(jitter(qBase / nRunning, 1))));
+      interpolatePump(pumps[0]);
+      interpolatePump(pumps[1]);
     }
-  });
-  // Eléctrico
+  }
+
+  // Actualizar display η
+  const etaDisplay = document.getElementById('spEtaDisplay');
+  if(etaDisplay){
+    const eta = pumps[0].state==="run" ? getEtaAtQ(pumps[0].q) : 0;
+    etaDisplay.textContent = eta.toFixed(0)+'%';
+    etaDisplay.style.color = eta>=ETA_STOP_B2?'var(--verde)':eta>=ETA_START_B2?'var(--naranja)':'var(--rojo)';
+  }
+
+  // === Eléctrico (escala con bombas activas) ===
+  const nBombas = pumps.filter(p=>p.state==="run").length;
+  const pActTotal = pumps.filter(p=>p.state==="run").reduce((s,p)=>s+p.powN,0);
   elec.vL1=jitter(228.4,1.2); elec.vL2=jitter(229.7,1.2); elec.vL3=jitter(227.9,1.2);
-  elec.iL1=jitter(15.1,0.5); elec.iL2=jitter(14.8,0.5); elec.iL3=jitter(15.4,0.5);
-  elec.pAct=jitter(9.6,0.3); elec.pReact=jitter(3.1,0.15); elec.fp=Math.min(1,jitter(0.95,0.01));
-  // Line-to-line voltages
+  elec.iL1=jitter(15.1*nBombas/1,0.5); elec.iL2=jitter(14.8*nBombas/1,0.5); elec.iL3=jitter(15.4*nBombas/1,0.5);
+  elec.pAct=pActTotal>0?jitter(pActTotal,0.3):0; elec.pReact=jitter(3.1*Math.max(1,nBombas),0.15); elec.fp=Math.min(1,jitter(0.95,0.01));
   elec.vL1L2=+((elec.vL1+elec.vL2)/2*SQRT3).toFixed(1);
   elec.vL3L2=+((elec.vL3+elec.vL2)/2*SQRT3).toFixed(1);
   elec.vL3L1=+((elec.vL3+elec.vL1)/2*SQRT3).toFixed(1);
@@ -1756,9 +1884,6 @@ function simulate(){
   commData.tecnologia = 4;
   commData.datosEnv += Math.random() * 0.05;
   commData.datosRec += Math.random() * 0.0003;
-  // Pozo: oscila entre arranque y parada
-  wellLevel += (Math.random()-0.45)*0.06;
-  wellLevel = Math.max(0.6, Math.min(4.2, wellLevel));
   renderPumps(); renderElec(); renderSec(); renderSecStats(); renderSecStatus(); renderComm(); renderCommStats(); renderCommStatus(); renderWell();
   pushCcmHistory(); updateCcmCharts();
   pushSecHistory(); updateSecCharts();
@@ -1797,7 +1922,8 @@ function sampleForExcel(){
     'Frecuencia (Hz)': +elec.freq.toFixed(1),
     'Asimetría (%)': +elec.asimetria.toFixed(2)
   });
-  const wellZone = wellLevel<0.9?'Nivel muy bajo':wellLevel<2.5?'Parada bombas':wellLevel<3.5?'Arranque bombas':'Arranque 2da bomba';
+  const wz = WELL_ZONES;
+  const wellZone = wellLevel<wz[0].max?'Nivel muy bajo':wellLevel<wz[1].max?'Parada bombas':wellLevel<wz[2].max?'Arranque bombas':'Arranque 2da bomba';
   excelBuffer.pozo.push({
     Timestamp:ts,
     'Nivel (m)': +wellLevel.toFixed(3),
@@ -1904,6 +2030,13 @@ function exportExcel(){
   const dateStr = now.toISOString().slice(0,10);
   XLSX.writeFile(wb, `EB13ZS_Informe_${dateStr}.xlsx`);
 }
+
+/* ====== Set Point slider ====== */
+document.getElementById('spSlider').addEventListener('input', function(){
+  spB2 = +this.value;
+  document.getElementById('spValue').textContent = spB2.toFixed(2)+' m';
+  updateWellZoneAnnotations();
+});
 
 /* ====== Init ====== */
 buildCcmStructure(); buildSecStructure(); buildCommStructure();
