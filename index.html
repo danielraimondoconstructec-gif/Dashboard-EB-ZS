@@ -622,69 +622,111 @@ function correspondencia(p){
   return {cls:"corr-bad", txt:"DESVIACIÓN CRÍTICA", dev};
 }
 
-/* Gráfica suavizada tipo smoothed-line (estilo amCharts) */
+/* Gráfica suavizada tipo smoothed-line (estilo amCharts) — solo bomba en servicio */
 const curveCharts = {};
+const curveHistory = {}; // historial de puntos de trabajo por bomba
+const CURVE_HISTORY_MAX = 60; // 2 minutos a 2s intervalo
+// Curva del fabricante (estática)
+const curveData = [
+  {q:0, h:5.0}, {q:10, h:4.85}, {q:20, h:4.6}, {q:30, h:4.3},
+  {q:40, h:3.95}, {q:50, h:3.55}, {q:60, h:3.1}, {q:70, h:2.6},
+  {q:80, h:2.0}, {q:90, h:1.3}, {q:100, h:0.5}
+];
+
 function drawCurve(p){
   const cv = document.getElementById("curve-"+p.id);
   if(!cv) return;
-  // Datos de la curva del fabricante: H (bar) vs Q (L/s)
-  const curveData = [
-    {q:0, h:5.0}, {q:10, h:4.85}, {q:20, h:4.6}, {q:30, h:4.3},
-    {q:40, h:3.95}, {q:50, h:3.55}, {q:60, h:3.1}, {q:70, h:2.6},
-    {q:80, h:2.0}, {q:90, h:1.3}, {q:100, h:0.5}
-  ];
-  const labels = curveData.map(d=>d.q);
-  const hValues = curveData.map(d=>d.h);
-  // Punto de trabajo actual
-  const workQ = p.state==="run" ? p.q : null;
-  const workH = p.state==="run" ? p.pres : null;
-  // Destruir chart previo si existe
-  if(curveCharts[p.id]){ curveCharts[p.id].destroy(); }
-  const datasets = [
-    {
-      label:'Curva H-Q fabricante',
-      data: curveData.map(d=>({x:d.q, y:d.h})),
-      borderColor:'#4A90E2',
-      backgroundColor:'rgba(74,144,226,.12)',
-      borderWidth:2.5,
-      tension:0.4,
-      fill:true,
-      showLine:true,
-      pointRadius:3,
-      pointBackgroundColor:'#4A90E2',
-      pointBorderColor:'#fff',
-      pointBorderWidth:1.5,
-      pointHoverRadius:5
-    }
-  ];
-  if(workQ!==null && workH!==null){
-    const inZone = workQ>=40 && workQ<=68;
-    datasets.push({
-      label:'Punto de trabajo',
-      data:[{x:workQ, y:workH}],
-      borderColor:'transparent',
-      backgroundColor: inZone ? '#27AE60' : '#E74C3C',
-      pointRadius:7,
-      pointBorderColor:'#fff',
-      pointBorderWidth:2,
-      pointStyle:'circle',
-      showLine:false
-    });
+  // Solo graficar bombas en servicio
+  if(p.state!=="run"){
+    // Si la bomba no está en servicio, destruir chart y limpiar historial
+    if(curveCharts[p.id]){ curveCharts[p.id].destroy(); delete curveCharts[p.id]; }
+    if(curveHistory[p.id]) curveHistory[p.id] = [];
+    const ctx = cv.getContext("2d");
+    ctx.clearRect(0,0,cv.width,cv.height);
+    ctx.fillStyle="#B0B0B0"; ctx.font="11px Segoe UI";
+    ctx.textAlign="center";
+    ctx.fillText("Bomba detenida — sin datos", cv.width/2, cv.height/2);
+    return;
   }
+  // Inicializar historial si no existe
+  if(!curveHistory[p.id]) curveHistory[p.id] = [];
+  // Agregar punto de trabajo actual al historial
+  curveHistory[p.id].push({x:p.q, y:p.pres});
+  if(curveHistory[p.id].length > CURVE_HISTORY_MAX) curveHistory[p.id].shift();
+
+  // Si el chart ya existe y el canvas es el mismo, solo actualizar datos
+  if(curveCharts[p.id] && curveCharts[p.id].canvas === cv){
+    const chart = curveCharts[p.id];
+    chart.data.datasets[1].data = [...curveHistory[p.id]];
+    const inZone = p.q>=40 && p.q<=68;
+    chart.data.datasets[2].data = [{x:p.q, y:p.pres}];
+    chart.data.datasets[2].backgroundColor = inZone ? '#27AE60' : '#E74C3C';
+    chart.update('none');
+    return;
+  }
+  // Si el canvas cambió (innerHTML rebuild), destruir chart viejo
+  if(curveCharts[p.id]){ curveCharts[p.id].destroy(); delete curveCharts[p.id]; }
+
+  // Crear chart por primera vez
+  const inZone = p.q>=40 && p.q<=68;
   curveCharts[p.id] = new Chart(cv, {
     type:'scatter',
-    data:{ datasets },
+    data:{
+      datasets:[
+        {
+          label:'Curva H-Q fabricante',
+          data: curveData.map(d=>({x:d.q, y:d.h})),
+          borderColor:'#4A90E2',
+          backgroundColor:'rgba(74,144,226,.12)',
+          borderWidth:2.5,
+          tension:0.4,
+          fill:true,
+          showLine:true,
+          pointRadius:3,
+          pointBackgroundColor:'#4A90E2',
+          pointBorderColor:'#fff',
+          pointBorderWidth:1.5,
+          pointHoverRadius:5
+        },
+        {
+          label:'Recorrido operativo',
+          data: [...curveHistory[p.id]],
+          borderColor:'#F39C12',
+          backgroundColor:'rgba(243,156,18,.08)',
+          borderWidth:1.5,
+          tension:0.3,
+          fill:false,
+          showLine:true,
+          pointRadius:1.5,
+          pointBackgroundColor:'#F39C12',
+          pointBorderWidth:0
+        },
+        {
+          label:'Punto actual',
+          data:[{x:p.q, y:p.pres}],
+          borderColor:'transparent',
+          backgroundColor: inZone ? '#27AE60' : '#E74C3C',
+          pointRadius:7,
+          pointBorderColor:'#fff',
+          pointBorderWidth:2,
+          pointStyle:'circle',
+          showLine:false
+        }
+      ]
+    },
     options:{
       responsive:true,
       maintainAspectRatio:false,
-      animation:{duration:600},
+      animation:false,
       plugins:{
         legend:{display:false},
         tooltip:{
           callbacks:{
             label:(item)=> item.datasetIndex===0
-              ? `H: ${item.raw.y.toFixed(2)} bar · Q: ${item.raw.x} L/s`
-              : `Trabajo: ${item.raw.y.toFixed(2)} bar · Q: ${item.raw.x} L/s`
+              ? `Curva: H=${item.raw.y.toFixed(2)} bar · Q=${item.raw.x} L/s`
+              : item.datasetIndex===2
+              ? `Actual: H=${item.raw.y.toFixed(2)} bar · Q=${item.raw.x} L/s`
+              : `Hist: H=${item.raw.y.toFixed(2)} bar · Q=${item.raw.x} L/s`
           }
         }
       },
