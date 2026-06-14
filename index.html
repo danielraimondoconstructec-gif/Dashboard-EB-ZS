@@ -871,7 +871,8 @@ let ccmCharts = [null, null, null];
 
 // Semicircular gauge SVG
 function semiGaugeSVG(value, min, max, color, w, h){
-  const pct = Math.max(0, Math.min(1, (value-min)/(max-min)));
+  const pctRaw = Math.max(0, Math.min(1, (value-min)/(max-min)));
+  const pct = Math.min(pctRaw, 0.97);
   const r = w*0.4, cx = w/2, cy = h*0.82, sw = w*0.08;
   const endAngle = Math.PI*(1-pct);
   const ex = cx + r*Math.cos(endAngle), ey = cy - r*Math.sin(endAngle);
