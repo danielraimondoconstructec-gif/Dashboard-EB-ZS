@@ -238,6 +238,17 @@
   .sec-status-row{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap}
   .sec-status-chip{flex:1;min-width:140px;display:flex;align-items:center;gap:8px;font-size:11.5px;font-weight:600;background:var(--gris-claro);padding:8px 10px;border-radius:6px}
 
+  /* Comunicaciones — Panel Enlace */
+  .comm-phases{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
+  .comm-col{background:var(--gris-claro);border-radius:8px;overflow:hidden}
+  .comm-col-head{font-size:12px;font-weight:700;padding:7px 8px;color:var(--gris-oscuro);text-align:center;border-bottom:1px solid #e0e0e0;display:flex;align-items:center;justify-content:space-between}
+  .comm-col-head .comm-val{font-size:14px;font-weight:700;color:#F39C12}
+  .comm-col-head .comm-lbl{flex:1;text-align:center}
+  .comm-chart-wrap{position:relative;height:160px;padding:6px 8px}
+  .comm-mid{padding:6px 8px;border-top:1px solid #e8e8e8}
+  .comm-status-row{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap}
+  .comm-status-chip{flex:1;min-width:140px;display:flex;align-items:center;gap:8px;font-size:11.5px;font-weight:600;background:var(--gris-claro);padding:8px 10px;border-radius:6px}
+
   /* Mapa */
   #map{height:300px;width:100%;border-radius:0 0 var(--radio) var(--radio);z-index:1}
   .map-foot{display:flex;justify-content:space-between;align-items:center;padding:10px 14px;border-top:1px solid #eee;font-size:11.5px;color:var(--gris-medio)}
@@ -421,6 +432,16 @@
       </thead>
       <tbody id="alarmBody"></tbody>
     </table>
+  </div>
+
+  <!-- Comunicaciones — Panel full width -->
+  <div class="card" style="margin-bottom:16px">
+    <h4>📡 Monitoreo de comunicaciones — Enlace GRD-XF</h4>
+    <div class="card-body">
+      <div class="comm-phases" id="commPhases"></div>
+      <div class="ccm-stats-section" id="commStats"></div>
+      <div class="comm-status-row" id="commStatus"></div>
+    </div>
   </div>
 
   <footer class="foot">Sistema SCADA · EB 13 ZS · Datos simulados en tiempo real para fines de diseño de pantalla — © Pilar, Ñeembucú, Paraguay</footer>
@@ -1259,6 +1280,201 @@ function renderSecStatus(){
     <div class="sec-status-chip"><span class="led led-ok"></span>Pulsador emergencia LIBERADO</div>`;
 }
 
+/* ====== Comunicaciones — Enlace GRD-XF ====== */
+const commData = {
+  rssi: -65,       // Nivel de señal RSSI (-120 a -50 dBm)
+  rsrp: -85,       // Potencia señal RSRP (-140 a -80 dBm)
+  rsrq: -7,        // Calidad señal RSRQ (-20 a -3 dB)
+  latencia: 55,    // Latencia (0-200 ms)
+  registro: 1,     // 0=No registrado, 1=Red local, 5=Roaming
+  tecnologia: 4,   // 2=2G, 3=3G, 4=4G LTE
+  datosEnv: 124.5, // MB enviados (acumulativo)
+  datosRec: 1.82   // GB recibidos (acumulativo)
+};
+
+const COMM_PHASES = [
+  {key:'rssi',     label:'RSSI — Nivel Señal', unit:'dBm', vKey:'rssi',     min:-120, max:-50, chartId:'commChart0', dec:0,
+   zones:[{from:-120,to:-90,color:'#E74C3C'},{from:-90,to:-70,color:'#F39C12'},{from:-70,to:-60,color:'#27AE60'},{from:-60,to:-50,color:'#F39C12'}]},
+  {key:'rsrp',     label:'RSRP — Potencia',    unit:'dBm', vKey:'rsrp',     min:-140, max:-80, chartId:'commChart1', dec:0,
+   zones:[{from:-140,to:-100,color:'#E74C3C'},{from:-100,to:-90,color:'#F39C12'},{from:-90,to:-80,color:'#27AE60'}]},
+  {key:'rsrq',     label:'RSRQ — Calidad',     unit:'dB',  vKey:'rsrq',     min:-20,  max:-3,  chartId:'commChart2', dec:1,
+   zones:[{from:-20,to:-12,color:'#E74C3C'},{from:-12,to:-9,color:'#F39C12'},{from:-9,to:-3,color:'#27AE60'}]},
+  {key:'latencia', label:'Latencia',            unit:'ms',  vKey:'latencia', min:0,    max:200, chartId:'commChart3', dec:0,
+   zones:[{from:0,to:80,color:'#27AE60'},{from:80,to:150,color:'#F39C12'},{from:150,to:200,color:'#E74C3C'}]}
+];
+
+const COMM_HIST_MAX = 120;
+const commHist = {labels:[], rssi:[], rsrp:[], rsrq:[], latencia:[]};
+const commReadings = {rssi:[], rsrp:[], rsrq:[], latencia:[]};
+let commReadingId = 60200;
+const commStatsAcc = {
+  rssi:{sum:0,count:0,max:-Infinity,min:Infinity,sumSq:0},
+  rsrp:{sum:0,count:0,max:-Infinity,min:Infinity,sumSq:0},
+  rsrq:{sum:0,count:0,max:-Infinity,min:Infinity,sumSq:0},
+  latencia:{sum:0,count:0,max:-Infinity,min:Infinity,sumSq:0}
+};
+let commCharts = [null, null, null, null];
+
+function pushCommHistory(){
+  const now = new Date();
+  const ts = now.toLocaleTimeString('es-PY',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+  commHist.labels.push(ts);
+  COMM_PHASES.forEach(p => {
+    const v = commData[p.vKey];
+    commHist[p.key].push(v);
+    const s = commStatsAcc[p.key];
+    s.sum += v; s.count++; s.sumSq += v*v;
+    if(v > s.max) s.max = v;
+    if(v < s.min) s.min = v;
+    commReadingId++;
+    const d = now.toLocaleDateString('es-PY',{day:'2-digit',month:'2-digit',year:'numeric'});
+    const h = now.toLocaleTimeString('es-PY',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+    commReadings[p.key].push({id:commReadingId, v: v.toFixed(p.dec), d, h});
+    if(commReadings[p.key].length > 10) commReadings[p.key].shift();
+  });
+  if(commHist.labels.length > COMM_HIST_MAX){
+    commHist.labels.shift();
+    COMM_PHASES.forEach(p => commHist[p.key].shift());
+  }
+}
+
+function initCommCharts(){
+  COMM_PHASES.forEach((p,i) => {
+    const cv = document.getElementById(p.chartId);
+    if(!cv) return;
+    const zoneBgPlugin = {
+      id:'commZoneBg'+i,
+      beforeDraw(chart){
+        const {ctx, chartArea, scales} = chart;
+        if(!chartArea) return;
+        const yScale = scales.y;
+        p.zones.forEach(z => {
+          const yTop = yScale.getPixelForValue(z.to);
+          const yBot = yScale.getPixelForValue(z.from);
+          ctx.save();
+          ctx.fillStyle = z.color + '18';
+          ctx.fillRect(chartArea.left, Math.min(yTop,yBot), chartArea.right - chartArea.left, Math.abs(yBot - yTop));
+          ctx.restore();
+        });
+      }
+    };
+    commCharts[i] = new Chart(cv, {
+      type:'line',
+      data:{labels:commHist.labels, datasets:[{
+        label:p.label, data:commHist[p.key],
+        borderColor:'#F39C12', backgroundColor:'rgba(243,156,18,.12)',
+        borderWidth:0.75, pointRadius:2, pointBackgroundColor:'#F39C12',
+        pointBorderColor:'#fff', pointBorderWidth:0.5,
+        stepped:'before', fill:false
+      }]},
+      options:{
+        animation:false, responsive:true, maintainAspectRatio:false,
+        interaction:{mode:'index',intersect:false},
+        plugins:{legend:{display:false}},
+        scales:{
+          x:{ticks:{maxTicksLimit:5,font:{size:8},maxRotation:0},grid:{color:'#f0f0f0'}},
+          y:{ticks:{font:{size:8}},grid:{color:'#f0f0f0'},min:p.min,max:p.max}
+        }
+      },
+      plugins:[zoneBgPlugin]
+    });
+  });
+}
+
+function updateCommCharts(){
+  commCharts.forEach((c,i) => {
+    if(!c) return;
+    c.data.labels = commHist.labels;
+    c.data.datasets[0].data = commHist[COMM_PHASES[i].key];
+    c.update();
+  });
+}
+
+function buildCommStructure(){
+  const wrap = document.getElementById('commPhases');
+  if(!wrap) return;
+  wrap.innerHTML = COMM_PHASES.map((p,i) => `<div class="comm-col">
+    <div class="comm-col-head">
+      <span class="comm-lbl">${p.label}</span>
+      <span class="comm-val" id="commVal${i}">${commData[p.vKey].toFixed(p.dec)} ${p.unit}</span>
+    </div>
+    <div class="comm-chart-wrap"><canvas id="${p.chartId}"></canvas></div>
+    <div class="comm-mid">
+      <div class="ccm-table-wrap" style="max-height:120px">
+        <table class="ccm-table">
+          <thead><tr><th>id</th><th>${p.unit}</th><th>Día</th><th>Hora</th></tr></thead>
+          <tbody id="commTbody${i}"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>`).join('');
+}
+
+function renderComm(){
+  COMM_PHASES.forEach((p,i) => {
+    const v = commData[p.vKey];
+    const vDisplay = v.toFixed(p.dec);
+    const valEl = document.getElementById('commVal'+i);
+    if(valEl) valEl.textContent = `${vDisplay} ${p.unit}`;
+    const tb = document.getElementById('commTbody'+i);
+    if(tb){
+      const rows = commReadings[p.key].map((r,ri) =>
+        `<tr${ri===0?' style="background:#fef3e0"':''}><td>${ri===0?'▸ ':''}<strong>${r.id}</strong></td><td>${r.v}</td><td>${r.d}</td><td>${r.h}</td></tr>`
+      ).reverse().join('');
+      tb.innerHTML = rows || '<tr><td colspan="4" style="text-align:center;color:#999">sin datos</td></tr>';
+    }
+  });
+}
+
+function renderCommStats(){
+  const wrap = document.getElementById('commStats');
+  if(!wrap) return;
+  const now = new Date();
+  const ts = now.toLocaleDateString('es-PY') + ' ' + now.toLocaleTimeString('es-PY',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+  const rows = COMM_PHASES.map(p => {
+    const s = commStatsAcc[p.key];
+    if(s.count < 2) return `<tr><td style="text-align:left"><strong>${p.label}</strong></td><td colspan="7" style="color:#999">Acumulando datos...</td></tr>`;
+    const mean = s.sum / s.count;
+    const stdDev = Math.sqrt((s.sumSq - s.sum*s.sum/s.count)/(s.count-1));
+    const z70=1.04, z20=1.28, z10=1.645;
+    const dec = p.dec;
+    return `<tr>
+      <td style="text-align:left"><strong>${p.label}</strong></td>
+      <td>${mean.toFixed(dec)}</td><td>${s.max.toFixed(dec)}</td><td>${s.min.toFixed(dec)}</td><td>${stdDev.toFixed(dec)}</td>
+      <td>${(mean+z70*stdDev).toFixed(dec)} / ${(mean-z70*stdDev).toFixed(dec)}</td>
+      <td>${(mean+z20*stdDev).toFixed(dec)} / ${(mean-z20*stdDev).toFixed(dec)}</td>
+      <td>${(mean+z10*stdDev).toFixed(dec)} / ${(mean-z10*stdDev).toFixed(dec)}</td>
+    </tr>`;
+  }).join('');
+  wrap.innerHTML = `
+    <table class="ccm-stats-tbl">
+      <thead><tr>
+        <th>${ts}</th><th>Media</th><th>Máximo</th><th>Mínimo</th><th>Desvío Est.</th>
+        <th>Máx/Mín Prob. 70%</th><th>Máx/Mín Prob. 20%</th><th>Máx/Mín Prob. 10%</th>
+      </tr></thead>
+      <tbody>${rows}</tbody>
+    </table>`;
+}
+
+function renderCommStatus(){
+  const wrap = document.getElementById('commStatus');
+  if(!wrap) return;
+  const online = commData.rssi > -100;
+  const latOk = commData.latencia < 150;
+  const regMap = {0:'No registrado', 1:'Red local', 5:'Roaming'};
+  const regLbl = regMap[commData.registro] || 'Desconocido';
+  const regOk = commData.registro === 1;
+  const tecMap = {2:'2G GPRS/EDGE', 3:'3G UMTS/HSPA', 4:'4G LTE'};
+  const tecLbl = tecMap[commData.tecnologia] || 'Desconocido';
+  const tecOk = commData.tecnologia === 4;
+  wrap.innerHTML = `
+    <div class="comm-status-chip"><span class="led ${online?'led-ok':'led-bad'}"></span>Conexión: ${online?'ONLINE':'OFFLINE'}</div>
+    <div class="comm-status-chip"><span class="led ${regOk?'led-ok':'led-bad'}"></span>Registro: ${regLbl}</div>
+    <div class="comm-status-chip"><span class="led ${tecOk?'led-ok':'led-bad'}"></span>Tecnología: ${tecLbl}</div>
+    <div class="comm-status-chip"><span class="led ${latOk?'led-ok':'led-bad'}"></span>Latencia: ${commData.latencia.toFixed(0)} ms</div>
+    <div class="comm-status-chip"><span class="led led-ok"></span>Datos: ↑ ${commData.datosEnv.toFixed(1)} MB · ↓ ${commData.datosRec.toFixed(2)} GB</div>`;
+}
+
 /* ====== Hidráulico ====== */
 let wellLevel = 2.75; // m
 const WELL_MAX = 3.9;
@@ -1523,20 +1739,31 @@ function simulate(){
   secData.vSalBat = Math.min(24.1, Math.max(23.9, jitter(24.0, 0.05)));
   secData.vEstab = jitter(24.0, 0.02);
   secData.autoMin = Math.min(60, Math.max(45, jitter(58.5, 1.5)));
+  // Comunicaciones
+  commData.rssi = Math.max(-120, Math.min(-50, jitter(-65, 5)));
+  commData.rsrp = Math.max(-140, Math.min(-80, jitter(-85, 3)));
+  commData.rsrq = Math.max(-20, Math.min(-3, jitter(-7, 1.5)));
+  commData.latencia = Math.max(20, Math.min(200, jitter(55, 8)));
+  commData.registro = 1;
+  commData.tecnologia = 4;
+  commData.datosEnv += Math.random() * 0.05;
+  commData.datosRec += Math.random() * 0.0003;
   // Pozo: oscila entre arranque y parada
   wellLevel += (Math.random()-0.45)*0.06;
   wellLevel = Math.max(0.6, Math.min(4.2, wellLevel));
-  renderPumps(); renderElec(); renderSec(); renderSecStats(); renderSecStatus(); renderWell();
+  renderPumps(); renderElec(); renderSec(); renderSecStats(); renderSecStatus(); renderComm(); renderCommStats(); renderCommStatus(); renderWell();
   pushCcmHistory(); updateCcmCharts();
   pushSecHistory(); updateSecCharts();
+  pushCommHistory(); updateCommCharts();
   pushHistory(); updateCharts(); updateMapPopup();
 }
 
 /* ====== Init ====== */
-buildCcmStructure(); buildSecStructure();
-renderPumps(); renderElec(); renderSec(); renderSecStats(); renderSecStatus(); renderWell(); renderAlarms(); tickClock(); initMap();
+buildCcmStructure(); buildSecStructure(); buildCommStructure();
+renderPumps(); renderElec(); renderSec(); renderSecStats(); renderSecStatus(); renderComm(); renderCommStats(); renderCommStatus(); renderWell(); renderAlarms(); tickClock(); initMap();
 pushCcmHistory(); initCcmCharts();
 pushSecHistory(); initSecCharts();
+pushCommHistory(); initCommCharts();
 pushHistory(); initCharts(); initWellZoneChart(); initWellGaussChart();
 setInterval(tickClock,1000);
 setInterval(simulate,2000);
