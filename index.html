@@ -450,7 +450,7 @@ function pushHistory(){
 
 let chartB1, chartElec, chartPower, chartWell;
 const chartDefaults = {
-  animation:{duration:400},
+  animation:{duration:600,easing:'easeInOutQuart'},
   responsive:true, maintainAspectRatio:false,
   interaction:{mode:'index',intersect:false},
   plugins:{legend:{position:'bottom',labels:{boxWidth:10,font:{size:11,family:'Segoe UI'}}}},
@@ -460,7 +460,7 @@ const chartDefaults = {
   }
 };
 function mkDataset(label,data,color,yID){
-  return {label,data,borderColor:color,backgroundColor:color+'22',borderWidth:2,pointRadius:0,tension:.35,fill:false,yAxisID:yID||'y'};
+  return {label,data,borderColor:color,backgroundColor:color+'22',borderWidth:0.75,pointRadius:0,tension:.4,fill:false,yAxisID:yID||'y'};
 }
 function initCharts(){
   chartB1 = new Chart(document.getElementById('trendB1'),{
