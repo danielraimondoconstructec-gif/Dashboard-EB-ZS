@@ -1093,14 +1093,14 @@ const secData = {
 };
 
 const SEC_PHASES = [
-  {key:'vAlim',    label:'V Alim. Cargador',     unit:'VCA', vKey:'vAlim',    min:200, max:240, gaugeMin:200, gaugeMax:240, chartId:'secChart0',
-   zones:[{from:200,to:210,color:'#E74C3C'},{from:210,to:214,color:'#F39C12'},{from:214,to:220,color:'#27AE60'},{from:220,to:230,color:'#F39C12'},{from:230,to:240,color:'#E74C3C'}]},
-  {key:'vSalCarg', label:'V Salida Cargador',     unit:'VCC', vKey:'vSalCarg', min:23.5,max:25,  gaugeMin:23, gaugeMax:25.5, chartId:'secChart1',
-   zones:[{from:23,to:23.8,color:'#E74C3C'},{from:23.8,to:24.1,color:'#F39C12'},{from:24.1,to:24.2,color:'#27AE60'},{from:24.2,to:24.8,color:'#F39C12'},{from:24.8,to:25.5,color:'#E74C3C'}]},
-  {key:'vSalBat',  label:'V Salida Baterías',     unit:'VCC', vKey:'vSalBat',  min:23,  max:25,  gaugeMin:23, gaugeMax:25.5, chartId:'secChart2',
-   zones:[{from:23,to:23.6,color:'#E74C3C'},{from:23.6,to:23.9,color:'#F39C12'},{from:23.9,to:24.1,color:'#27AE60'},{from:24.1,to:24.5,color:'#F39C12'},{from:24.5,to:25.5,color:'#E74C3C'}]},
-  {key:'vEstab',   label:'V Estabilizador',        unit:'VCC', vKey:'vEstab',   min:23,  max:25,  gaugeMin:23, gaugeMax:25.5, chartId:'secChart3',
-   zones:[{from:23,to:23.6,color:'#E74C3C'},{from:23.6,to:23.9,color:'#F39C12'},{from:23.9,to:24.1,color:'#27AE60'},{from:24.1,to:24.5,color:'#F39C12'},{from:24.5,to:25.5,color:'#E74C3C'}]},
+  {key:'vAlim',    label:'V Alim. Cargador',     unit:'VCA', vKey:'vAlim',    min:200, max:240, gaugeMin:0, gaugeMax:250, chartId:'secChart0',
+   zones:[{from:0,to:200,color:'#E74C3C'},{from:200,to:214,color:'#F39C12'},{from:214,to:220,color:'#27AE60'},{from:220,to:240,color:'#F39C12'},{from:240,to:250,color:'#E74C3C'}]},
+  {key:'vSalCarg', label:'V Salida Cargador',     unit:'VCC', vKey:'vSalCarg', min:23.5,max:25,  gaugeMin:0, gaugeMax:30, chartId:'secChart1',
+   zones:[{from:0,to:22,color:'#E74C3C'},{from:22,to:24.1,color:'#F39C12'},{from:24.1,to:24.2,color:'#27AE60'},{from:24.2,to:26,color:'#F39C12'},{from:26,to:30,color:'#E74C3C'}]},
+  {key:'vSalBat',  label:'V Salida Baterías',     unit:'VCC', vKey:'vSalBat',  min:23,  max:25,  gaugeMin:0, gaugeMax:30, chartId:'secChart2',
+   zones:[{from:0,to:22,color:'#E74C3C'},{from:22,to:23.9,color:'#F39C12'},{from:23.9,to:24.1,color:'#27AE60'},{from:24.1,to:26,color:'#F39C12'},{from:26,to:30,color:'#E74C3C'}]},
+  {key:'vEstab',   label:'V Estabilizador',        unit:'VCC', vKey:'vEstab',   min:23,  max:25,  gaugeMin:0, gaugeMax:30, chartId:'secChart3',
+   zones:[{from:0,to:22,color:'#E74C3C'},{from:22,to:23.9,color:'#F39C12'},{from:23.9,to:24.1,color:'#27AE60'},{from:24.1,to:26,color:'#F39C12'},{from:26,to:30,color:'#E74C3C'}]},
   {key:'autoMin',  label:'Autonomía Batería',      unit:'min', vKey:'autoMin',  min:0,   max:65,  gaugeMin:0,  gaugeMax:60,   chartId:'secChart4',
    zones:[{from:0,to:15,color:'#E74C3C'},{from:15,to:30,color:'#F39C12'},{from:30,to:45,color:'#82C91E'},{from:45,to:60,color:'#27AE60'}]}
 ];
