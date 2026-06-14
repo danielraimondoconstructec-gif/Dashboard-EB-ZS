@@ -241,14 +241,10 @@
   /* Comunicaciones — Panel Enlace */
   .comm-phases{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
   .comm-col{background:var(--gris-claro);border-radius:8px;overflow:hidden}
-  .comm-col-head{font-size:12px;font-weight:700;padding:7px 8px;color:var(--gris-oscuro);text-align:center;border-bottom:1px solid #e0e0e0}
-  .comm-top{display:grid;grid-template-columns:1fr auto;gap:6px;padding:8px;align-items:center}
-  .comm-chart-wrap{position:relative;height:90px;min-width:0}
-  .comm-gauge-big{display:flex;flex-direction:column;align-items:center;min-width:130px}
-  .comm-gauge-big .sg-val{font-size:26px;font-weight:700;color:var(--gris-oscuro);margin-top:-8px}
-  .comm-gauge-big .sg-lbl{font-size:9px;color:var(--gris-medio);font-weight:600;text-transform:uppercase;margin-top:1px}
-  .comm-gauge-big .sg-sub{font-size:11px;font-weight:700;color:#F39C12;margin-top:1px}
-  .comm-gauge-big .sg-site{font-size:8px;color:var(--gris-medio);margin-top:1px}
+  .comm-col-head{font-size:12px;font-weight:700;padding:7px 8px;color:var(--gris-oscuro);text-align:center;border-bottom:1px solid #e0e0e0;display:flex;align-items:center;justify-content:space-between}
+  .comm-col-head .comm-val{font-size:14px;font-weight:700;color:#F39C12}
+  .comm-col-head .comm-lbl{flex:1;text-align:center}
+  .comm-chart-wrap{position:relative;height:160px;padding:6px 8px}
   .comm-mid{padding:6px 8px;border-top:1px solid #e8e8e8}
   .comm-status-row{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap}
   .comm-status-chip{flex:1;min-width:140px;display:flex;align-items:center;gap:8px;font-size:11.5px;font-weight:600;background:var(--gris-claro);padding:8px 10px;border-radius:6px}
@@ -1297,13 +1293,13 @@ const commData = {
 };
 
 const COMM_PHASES = [
-  {key:'rssi',     label:'RSSI — Nivel Señal', unit:'dBm', vKey:'rssi',     min:-120, max:-50, gaugeMin:0, gaugeMax:120, absGauge:true, chartId:'commChart0', dec:0,
-   zones:[{from:0,to:30,color:'#E74C3C'},{from:30,to:60,color:'#F39C12'},{from:60,to:70,color:'#27AE60'},{from:70,to:90,color:'#F39C12'},{from:90,to:120,color:'#E74C3C'}]},
-  {key:'rsrp',     label:'RSRP — Potencia',    unit:'dBm', vKey:'rsrp',     min:-140, max:-80, gaugeMin:0, gaugeMax:140, absGauge:true, chartId:'commChart1', dec:0,
-   zones:[{from:0,to:60,color:'#E74C3C'},{from:60,to:80,color:'#F39C12'},{from:80,to:90,color:'#27AE60'},{from:90,to:100,color:'#F39C12'},{from:100,to:140,color:'#E74C3C'}]},
-  {key:'rsrq',     label:'RSRQ — Calidad',     unit:'dB',  vKey:'rsrq',     min:-20,  max:-3, gaugeMin:0, gaugeMax:20,  absGauge:true, chartId:'commChart2', dec:1,
-   zones:[{from:0,to:3,color:'#F39C12'},{from:3,to:9,color:'#27AE60'},{from:9,to:12,color:'#F39C12'},{from:12,to:20,color:'#E74C3C'}]},
-  {key:'latencia', label:'Latencia',            unit:'ms',  vKey:'latencia', min:0,    max:200, gaugeMin:0, gaugeMax:200, chartId:'commChart3', dec:0,
+  {key:'rssi',     label:'RSSI — Nivel Señal', unit:'dBm', vKey:'rssi',     min:-120, max:-50, chartId:'commChart0', dec:0,
+   zones:[{from:-120,to:-90,color:'#E74C3C'},{from:-90,to:-70,color:'#F39C12'},{from:-70,to:-60,color:'#27AE60'},{from:-60,to:-50,color:'#F39C12'}]},
+  {key:'rsrp',     label:'RSRP — Potencia',    unit:'dBm', vKey:'rsrp',     min:-140, max:-80, chartId:'commChart1', dec:0,
+   zones:[{from:-140,to:-100,color:'#E74C3C'},{from:-100,to:-90,color:'#F39C12'},{from:-90,to:-80,color:'#27AE60'}]},
+  {key:'rsrq',     label:'RSRQ — Calidad',     unit:'dB',  vKey:'rsrq',     min:-20,  max:-3,  chartId:'commChart2', dec:1,
+   zones:[{from:-20,to:-12,color:'#E74C3C'},{from:-12,to:-9,color:'#F39C12'},{from:-9,to:-3,color:'#27AE60'}]},
+  {key:'latencia', label:'Latencia',            unit:'ms',  vKey:'latencia', min:0,    max:200, chartId:'commChart3', dec:0,
    zones:[{from:0,to:80,color:'#27AE60'},{from:80,to:150,color:'#F39C12'},{from:150,to:200,color:'#E74C3C'}]}
 ];
 
@@ -1346,23 +1342,41 @@ function initCommCharts(){
   COMM_PHASES.forEach((p,i) => {
     const cv = document.getElementById(p.chartId);
     if(!cv) return;
+    const zoneBgPlugin = {
+      id:'commZoneBg'+i,
+      beforeDraw(chart){
+        const {ctx, chartArea, scales} = chart;
+        if(!chartArea) return;
+        const yScale = scales.y;
+        p.zones.forEach(z => {
+          const yTop = yScale.getPixelForValue(z.to);
+          const yBot = yScale.getPixelForValue(z.from);
+          ctx.save();
+          ctx.fillStyle = z.color + '18';
+          ctx.fillRect(chartArea.left, Math.min(yTop,yBot), chartArea.right - chartArea.left, Math.abs(yBot - yTop));
+          ctx.restore();
+        });
+      }
+    };
     commCharts[i] = new Chart(cv, {
       type:'line',
       data:{labels:commHist.labels, datasets:[{
         label:p.label, data:commHist[p.key],
-        borderColor:'#F39C12', backgroundColor:'rgba(243,156,18,.08)',
-        borderWidth:0.75, pointRadius:1, pointBackgroundColor:'#F39C12',
-        tension:.4, fill:true
+        borderColor:'#F39C12', backgroundColor:'rgba(243,156,18,.12)',
+        borderWidth:0.75, pointRadius:2, pointBackgroundColor:'#F39C12',
+        pointBorderColor:'#fff', pointBorderWidth:0.5,
+        stepped:'before', fill:false
       }]},
       options:{
         animation:false, responsive:true, maintainAspectRatio:false,
         interaction:{mode:'index',intersect:false},
         plugins:{legend:{display:false}},
         scales:{
-          x:{ticks:{maxTicksLimit:4,font:{size:7},maxRotation:0},grid:{color:'#f0f0f0'}},
-          y:{ticks:{font:{size:7}},grid:{color:'#f0f0f0'},min:p.min,max:p.max}
+          x:{ticks:{maxTicksLimit:5,font:{size:8},maxRotation:0},grid:{color:'#f0f0f0'}},
+          y:{ticks:{font:{size:8}},grid:{color:'#f0f0f0'},min:p.min,max:p.max}
         }
-      }
+      },
+      plugins:[zoneBgPlugin]
     });
   });
 }
@@ -1380,11 +1394,11 @@ function buildCommStructure(){
   const wrap = document.getElementById('commPhases');
   if(!wrap) return;
   wrap.innerHTML = COMM_PHASES.map((p,i) => `<div class="comm-col">
-    <div class="comm-col-head">${p.label}</div>
-    <div class="comm-top">
-      <div class="comm-chart-wrap"><canvas id="${p.chartId}"></canvas></div>
-      <div class="comm-gauge-big" id="commGaugeBig${i}"></div>
+    <div class="comm-col-head">
+      <span class="comm-lbl">${p.label}</span>
+      <span class="comm-val" id="commVal${i}">${commData[p.vKey].toFixed(p.dec)} ${p.unit}</span>
     </div>
+    <div class="comm-chart-wrap"><canvas id="${p.chartId}"></canvas></div>
     <div class="comm-mid">
       <div class="ccm-table-wrap" style="max-height:120px">
         <table class="ccm-table">
@@ -1400,14 +1414,8 @@ function renderComm(){
   COMM_PHASES.forEach((p,i) => {
     const v = commData[p.vKey];
     const vDisplay = v.toFixed(p.dec);
-    const vRound = p.dec===0 ? Math.round(v) : v.toFixed(1);
-    const gVal = p.absGauge ? Math.abs(v) : v;
-    const gb = document.getElementById('commGaugeBig'+i);
-    if(gb) gb.innerHTML = `${angularGaugeSVG(gVal, p.gaugeMin, p.gaugeMax, '#F39C12', 130, 100, p.zones)}
-      <div class="sg-val">${vRound}</div>
-      <div class="sg-lbl">${p.unit}</div>
-      <div class="sg-sub" style="color:#F39C12">${vDisplay}</div>
-      <div class="sg-site">EB 13 ZS</div>`;
+    const valEl = document.getElementById('commVal'+i);
+    if(valEl) valEl.textContent = `${vDisplay} ${p.unit}`;
     const tb = document.getElementById('commTbody'+i);
     if(tb){
       const rows = commReadings[p.key].map((r,ri) =>
