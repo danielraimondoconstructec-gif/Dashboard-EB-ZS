@@ -7,6 +7,8 @@
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@3.0.1/dist/chartjs-plugin-annotation.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/hammerjs@2.0.8/hammer.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1/dist/chartjs-plugin-zoom.min.js"></script>
 <style>
   :root{
     --celeste:#4A90E2;
@@ -237,6 +239,10 @@
     color:var(--gris-oscuro);display:flex;align-items:center;gap:8px;background:#fafcff;
   }
   .trend-card .trend-body{padding:14px;height:220px;position:relative}
+  .trend-card .trend-toolbar{display:flex;align-items:center;justify-content:space-between;padding:0 14px 6px}
+  .trend-card .trend-toolbar .hint{font-size:9px;color:var(--gris-medio);font-style:italic}
+  .zoom-reset{border:1px solid var(--gris-medio);background:#fff;color:var(--gris-oscuro);font:inherit;font-size:10px;font-weight:600;padding:3px 10px;border-radius:12px;cursor:pointer;transition:.15s}
+  .zoom-reset:hover{border-color:var(--celeste);color:var(--celeste)}
   @media(max-width:1200px){.trends-grid{grid-template-columns:1fr}}
 
   /* Alarmas */
@@ -376,22 +382,26 @@
   </div>
 
   <!-- Gráficos de tendencia -->
-  <div class="section-title">Tendencias en el tiempo — Últimos 2 minutos</div>
+  <div class="section-title">Tendencias en el tiempo — Historial con desplazamiento</div>
   <div class="trends-grid">
     <div class="trend-card">
       <h4>⚡ Bomba B1 — Potencia · Corriente · RPM</h4>
+      <div class="trend-toolbar"><span class="hint">🖱️ Scroll para zoom · Arrastrar para desplazar</span><button class="zoom-reset" onclick="resetZoom('B1')">Reset zoom</button></div>
       <div class="trend-body"><canvas id="trendB1"></canvas></div>
     </div>
     <div class="trend-card">
       <h4>🔌 Tablero eléctrico — Tensiones L1 · L2 · L3</h4>
+      <div class="trend-toolbar"><span class="hint">🖱️ Scroll para zoom · Arrastrar para desplazar</span><button class="zoom-reset" onclick="resetZoom('Elec')">Reset zoom</button></div>
       <div class="trend-body"><canvas id="trendElec"></canvas></div>
     </div>
     <div class="trend-card">
       <h4>⚡ Tablero eléctrico — Potencia activa · Factor de potencia</h4>
+      <div class="trend-toolbar"><span class="hint">🖱️ Scroll para zoom · Arrastrar para desplazar</span><button class="zoom-reset" onclick="resetZoom('Power')">Reset zoom</button></div>
       <div class="trend-body"><canvas id="trendPower"></canvas></div>
     </div>
     <div class="trend-card">
       <h4>💧 Pozo de bombeo — Nivel del agua</h4>
+      <div class="trend-toolbar"><span class="hint">🖱️ Scroll para zoom · Arrastrar para desplazar</span><button class="zoom-reset" onclick="resetZoom('Well')">Reset zoom</button></div>
       <div class="trend-body"><canvas id="trendWell"></canvas></div>
     </div>
   </div>
@@ -422,7 +432,7 @@
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
 /* ====== Historial de tendencias ====== */
-const HISTORY_MAX = 60;
+const HISTORY_MAX = 300; // 10 min de historial (300 muestras a 2s)
 const history = {
   labels: [],
   b1Pow:[], b1Cur:[], b1Rpm:[],
@@ -453,14 +463,21 @@ const chartDefaults = {
   animation:{duration:600,easing:'easeInOutQuart'},
   responsive:true, maintainAspectRatio:false,
   interaction:{mode:'index',intersect:false},
-  plugins:{legend:{position:'bottom',labels:{boxWidth:10,font:{size:11,family:'Segoe UI'}}}},
+  plugins:{
+    legend:{position:'bottom',labels:{boxWidth:10,font:{size:11,family:'Segoe UI'}}},
+    zoom:{
+      pan:{enabled:true, mode:'x', scaleMode:'x'},
+      zoom:{wheel:{enabled:true, speed:0.05}, pinch:{enabled:true}, mode:'x'},
+      limits:{x:{minRange:10}}
+    }
+  },
   scales:{
-    x:{ticks:{maxTicksLimit:8,font:{size:10}},grid:{color:'#f0f0f0'}},
+    x:{ticks:{maxTicksLimit:8,font:{size:10},maxRotation:0},grid:{color:'#f0f0f0'},min:undefined,max:undefined},
     y:{ticks:{font:{size:10}},grid:{color:'#f0f0f0'}}
   }
 };
 function mkDataset(label,data,color,yID){
-  return {label,data,borderColor:color,backgroundColor:color+'22',borderWidth:0.75,pointRadius:0,tension:.4,fill:false,yAxisID:yID||'y'};
+  return {label,data,borderColor:color,backgroundColor:color+'22',borderWidth:0.75,pointRadius:1.5,pointBackgroundColor:color,pointBorderWidth:0,pointHoverRadius:4,tension:.4,fill:false,yAxisID:yID||'y'};
 }
 function initCharts(){
   chartB1 = new Chart(document.getElementById('trendB1'),{
@@ -517,7 +534,26 @@ function initCharts(){
   });
 }
 function updateCharts(){
-  [chartB1,chartElec,chartPower,chartWell].forEach(c=>{if(c){c.data.labels=history.labels;c.update();}});
+  [chartB1,chartElec,chartPower,chartWell].forEach(c=>{
+    if(!c) return;
+    c.data.labels=history.labels;
+    // Auto-scroll: solo si no hay zoom activo (usuario no hizo zoom manual)
+    const xScale = c.scales.x;
+    const isZoomed = c.isZoomedOrPanned && c.isZoomedOrPanned();
+    if(!isZoomed){
+      const len = history.labels.length;
+      if(len > 60){
+        c.options.scales.x.min = len - 60;
+        c.options.scales.x.max = len - 1;
+      }
+    }
+    c.update();
+  });
+}
+function resetZoom(id){
+  const map = {B1:chartB1, Elec:chartElec, Power:chartPower, Well:chartWell};
+  const c = map[id];
+  if(c && c.resetZoom) c.resetZoom();
 }
 
 /* ====== Estado de las bombas ====== */
