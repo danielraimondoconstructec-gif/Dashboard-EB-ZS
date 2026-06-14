@@ -80,6 +80,16 @@
   .sp-control input[type=range]{flex:1;height:4px;accent-color:var(--celeste);cursor:pointer}
   .sp-control .sp-val{font-weight:700;color:var(--celeste);min-width:52px;text-align:center}
   .sp-control .sp-eta{font-size:10px;color:var(--gris-medio);white-space:nowrap}
+  .pump-narrative{background:linear-gradient(135deg,#f8f9fa 0%,#eef2f7 100%);border:1px solid #e0e6ed;border-radius:8px;padding:12px 16px;margin-bottom:12px;font-size:12px;line-height:1.6;color:var(--gris-oscuro);position:relative;overflow:hidden}
+  .pump-narrative::before{content:"📋";position:absolute;top:8px;left:12px;font-size:14px}
+  .pump-narrative .narr-title{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--gris-medio);margin-bottom:6px;padding-left:22px}
+  .pump-narrative .narr-body{padding-left:22px;max-height:80px;overflow-y:auto}
+  .pump-narrative .narr-body p{margin:0 0 4px}
+  .pump-narrative .narr-eta-ok{color:var(--verde);font-weight:700}
+  .pump-narrative .narr-eta-warn{color:var(--naranja);font-weight:700}
+  .pump-narrative .narr-eta-crit{color:var(--rojo);font-weight:700}
+  .pump-narrative .narr-level{color:var(--celeste);font-weight:600}
+  .pump-narrative .narr-pump{font-weight:700}
   .pump-event-log{font-size:10px;color:var(--gris-medio);margin-top:4px;max-height:56px;overflow-y:auto;line-height:1.3}
   .pump-event-log .ev-on{color:var(--verde);font-weight:600}
   .pump-event-log .ev-off{color:var(--celeste);font-weight:600}
@@ -341,6 +351,10 @@
 
 <main>
   <div class="section-title">Bombas WILO FA_10.33E — Lecturas en tiempo real</div>
+  <div class="pump-narrative" id="pumpNarrative">
+    <div class="narr-title">Relatorio de operación en tiempo real</div>
+    <div class="narr-body" id="narrBody"><p>Iniciando monitoreo...</p></div>
+  </div>
   <section class="pumps" id="pumps"></section>
 
   <div class="section-title">Supervisión general de la estación</div>
@@ -1794,6 +1808,71 @@ function stopPump(p){
   p.state = "off"; p.powN=0; p.curN=0; p.rpm=0; p.q=0; p.pres=0;
 }
 
+function updateNarrative(){
+  const el = document.getElementById('narrBody');
+  if(!el) return;
+  const z = WELL_ZONES;
+  const running = pumps.filter(p=>p.state==="run");
+  const off = pumps.filter(p=>p.state==="off");
+  const fault = pumps.filter(p=>p.state==="fault");
+  const lines = [];
+
+  // Zona actual del pozo
+  let zonaNombre='', zonaClass='';
+  if(wellLevel < z[0].max){ zonaNombre='nivel muy bajo'; zonaClass='narr-eta-crit'; }
+  else if(wellLevel < z[1].max){ zonaNombre='zona de parada'; zonaClass='narr-eta-ok'; }
+  else if(wellLevel < z[2].max){ zonaNombre='zona de arranque'; zonaClass='narr-eta-warn'; }
+  else { zonaNombre='zona de arranque 2da bomba'; zonaClass='narr-eta-crit'; }
+
+  lines.push('El nivel del pozo se encuentra en <span class="narr-level">'+wellLevel.toFixed(2)+' m</span>, dentro de la <span class="'+zonaClass+'">'+zonaNombre+'</span> (SP: '+spB2.toFixed(1)+' m).');
+
+  if(running.length === 0 && fault.length < pumps.length){
+    lines.push('No hay bombas en servicio actualmente. El sistema está en espera de que el nivel alcance la zona de arranque ('+z[2].min+' m).');
+  }
+
+  if(running.length === 1){
+    const p = running[0];
+    const eta = getEtaAtQ(p.q);
+    const etaCls = eta>=ETA_OPT_MIN&&eta<=ETA_OPT_MAX?'narr-eta-ok':eta>=ETA_CRITICAL?'narr-eta-warn':'narr-eta-crit';
+    const etaDesc = eta>=ETA_OPT_MIN&&eta<=ETA_OPT_MAX?'dentro del rango óptimo':eta>=ETA_CRITICAL?'fuera del rango óptimo':'por debajo del umbral crítico';
+    lines.push('<span class="narr-pump">'+p.id+'</span> opera en servicio con un caudal de <strong>'+p.q+' L/s</strong>, presión manométrica de <strong>'+p.pres+' m</strong> y eficiencia hidráulica <span class="'+etaCls+'">η='+eta.toFixed(0)+'%</span> ('+etaDesc+', rango: '+ETA_OPT_MIN+'-'+ETA_OPT_MAX+'%).');
+    if(eta < ETA_OPT_MIN || eta > ETA_OPT_MAX){
+      lines.push('La eficiencia se encuentra fuera del rango óptimo. Si esta condición se sostiene, el sistema activará automáticamente la segunda bomba disponible.');
+    }
+    if(off.length > 0){
+      const sig = off.reduce((a,b)=>a.hUse<=b.hUse?a:b);
+      lines.push('<span class="narr-pump">'+sig.id+'</span> permanece en reserva con '+Math.round(sig.hUse).toLocaleString('es')+' horas acumuladas.');
+    }
+  }
+
+  if(running.length === 2){
+    const sorted = [...running].sort((a,b)=>a.hUse-b.hUse);
+    const menor = sorted[0], mayor = sorted[1];
+    const etaMenor = getEtaAtQ(menor.q), etaMayor = getEtaAtQ(mayor.q);
+    const etaClsM = etaMenor>=ETA_OPT_MIN&&etaMenor<=ETA_OPT_MAX?'narr-eta-ok':'narr-eta-warn';
+    const etaClsY = etaMayor>=ETA_OPT_MIN&&etaMayor<=ETA_OPT_MAX?'narr-eta-ok':'narr-eta-warn';
+    lines.push('Dos bombas operan en servicio compartiendo la carga hidráulica:');
+    lines.push('• <span class="narr-pump">'+menor.id+'</span> (menor horas: '+Math.round(menor.hUse).toLocaleString('es')+' h) — Q='+menor.q+' L/s, <span class="'+etaClsM+'">η='+etaMenor.toFixed(0)+'%</span>');
+    lines.push('• <span class="narr-pump">'+mayor.id+'</span> (mayor horas: '+Math.round(mayor.hUse).toLocaleString('es')+' h) — Q='+mayor.q+' L/s, <span class="'+etaClsY+'">η='+etaMayor.toFixed(0)+'%</span>');
+    // Evaluar si la de menor horas puede sola
+    const nivelMuyBajo = z[0].max;
+    const demandFactor = Math.max(0, Math.min(1, (wellLevel - nivelMuyBajo) / (spB2 - nivelMuyBajo)));
+    const qSola = 18 + demandFactor * 22;
+    const etaSola = getEtaAtQ(Math.round(qSola));
+    if(etaSola >= ETA_OPT_MIN && etaSola <= ETA_OPT_MAX){
+      lines.push('El sistema evalúa que <span class="narr-pump">'+menor.id+'</span> podría sostener la carga sola con η estimada de '+etaSola.toFixed(0)+'%. Se procederá a apagar <span class="narr-pump">'+mayor.id+'</span>.');
+    } else {
+      lines.push('Ambas bombas son necesarias: si <span class="narr-pump">'+menor.id+'</span> operara sola, su η estimada sería '+etaSola.toFixed(0)+'% (fuera del rango óptimo).');
+    }
+  }
+
+  if(fault.length > 0){
+    lines.push('⚠️ '+fault.map(p=>'<span class="narr-pump">'+p.id+'</span>').join(', ')+' en <span class="narr-eta-crit">defecto térmico</span> — fuera de servicio.');
+  }
+
+  el.innerHTML = lines.map(l=>'<p>'+l+'</p>').join('');
+}
+
 function simulate(){
   const z = WELL_ZONES;
   const nivelArranque = z[2].min;
@@ -1935,6 +2014,7 @@ function simulate(){
   commData.tecnologia = 4;
   commData.datosEnv += Math.random() * 0.05;
   commData.datosRec += Math.random() * 0.0003;
+  updateNarrative();
   renderPumps(); renderElec(); renderSec(); renderSecStats(); renderSecStatus(); renderComm(); renderCommStats(); renderCommStatus(); renderWell();
   pushCcmHistory(); updateCcmCharts();
   pushSecHistory(); updateSecCharts();
