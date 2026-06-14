@@ -223,17 +223,20 @@
   .well-now .l{font-size:10.5px;color:var(--gris-medio);text-transform:uppercase;font-weight:600}
   .well-now .v{font-size:22px;font-weight:700;color:var(--celeste)}
 
-  /* Seguridad */
-  .safe-list{display:flex;flex-direction:column;gap:11px}
-  .safe-item{display:flex;align-items:center;gap:11px;padding:11px;border-radius:6px;background:var(--gris-claro)}
-  .safe-item .si-ic{width:38px;height:38px;border-radius:8px;display:flex;align-items:center;justify-content:center;flex:0 0 auto}
-  .safe-item .si-ic svg{width:22px;height:22px}
-  .safe-item .si-txt{flex:1}
-  .safe-item .si-txt .t{font-size:12.5px;font-weight:700}
-  .safe-item .si-txt .s{font-size:11px;color:var(--gris-medio)}
-  .safe-item .si-st{font-size:11.5px;font-weight:700;padding:4px 11px;border-radius:20px}
-  .batt-bar{height:6px;background:var(--gris-medio);border-radius:3px;margin-top:5px;overflow:hidden;width:100%}
-  .batt-bar > i{display:block;height:100%;background:var(--verde)}
+  /* Seguridad — Panel Autonomía */
+  .sec-phases{display:grid;grid-template-columns:repeat(5,1fr);gap:14px}
+  .sec-col{background:var(--gris-claro);border-radius:8px;overflow:hidden}
+  .sec-col-head{font-size:12px;font-weight:700;padding:7px 8px;color:var(--gris-oscuro);text-align:center;border-bottom:1px solid #e0e0e0}
+  .sec-top{display:grid;grid-template-columns:1fr auto;gap:6px;padding:8px;align-items:center}
+  .sec-chart-wrap{position:relative;height:90px;min-width:0}
+  .sec-gauge-big{display:flex;flex-direction:column;align-items:center;min-width:100px}
+  .sec-gauge-big .sg-val{font-size:26px;font-weight:700;color:var(--gris-oscuro);margin-top:-4px}
+  .sec-gauge-big .sg-lbl{font-size:9px;color:var(--gris-medio);font-weight:600;text-transform:uppercase;margin-top:1px}
+  .sec-gauge-big .sg-sub{font-size:11px;font-weight:700;color:var(--verde);margin-top:1px}
+  .sec-gauge-big .sg-site{font-size:8px;color:var(--gris-medio);margin-top:1px}
+  .sec-mid{padding:6px 8px;border-top:1px solid #e8e8e8}
+  .sec-status-row{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap}
+  .sec-status-chip{flex:1;min-width:140px;display:flex;align-items:center;gap:8px;font-size:11.5px;font-weight:600;background:var(--gris-claro);padding:8px 10px;border-radius:6px}
 
   /* Mapa */
   #map{height:300px;width:100%;border-radius:0 0 var(--radio) var(--radio);z-index:1}
@@ -282,7 +285,8 @@
   .ack{font-size:11px;color:var(--gris-medio)}
   footer.foot{text-align:center;color:var(--gris-medio);font-size:11px;padding:18px}
 
-  @media(max-width:1200px){.pumps{grid-template-columns:1fr}.grid-lower{grid-template-columns:1fr}}
+  @media(max-width:1200px){.pumps{grid-template-columns:1fr}.grid-lower{grid-template-columns:1fr}.sec-phases{grid-template-columns:repeat(3,1fr)}}
+  @media(max-width:768px){.sec-phases{grid-template-columns:1fr}.ccm-phases{grid-template-columns:1fr}}
 </style>
 </head>
 <body>
@@ -323,7 +327,7 @@
       <div class="phase-row" id="phaseHealth"></div>
     </div>
   </div>
-  <div class="grid-lower" style="grid-template-columns:1fr 1fr">
+  <div class="grid-lower" style="grid-template-columns:1fr">
     <!-- Hidráulico -->
     <div class="card">
       <h4>💧 Pozo de bombeo — Niveles</h4>
@@ -352,34 +356,15 @@
       </div>
     </div>
 
-    <!-- Seguridad y autonomía + Mapa -->
-    <div class="card">
-      <h4>🛡️ Seguridad y autonomía</h4>
-      <div class="card-body">
-        <div class="safe-list">
-          <div class="safe-item">
-            <div class="si-ic" style="background:rgba(39,174,96,.13)">
-              <svg viewBox="0 0 24 24" fill="none" stroke="#27AE60" stroke-width="2"><rect x="2" y="7" width="16" height="10" rx="2"/><line x1="22" y1="11" x2="22" y2="13"/><line x1="6" y1="10" x2="6" y2="14"/><line x1="10" y1="10" x2="10" y2="14"/></svg>
-            </div>
-            <div class="si-txt">
-              <div class="t">Cargador de baterías</div>
-              <div class="s">Circuito de autonomía de comando</div>
-              <div class="batt-bar"><i id="battBar" style="width:96%"></i></div>
-            </div>
-            <div class="si-st" id="battSt" style="background:rgba(39,174,96,.13);color:var(--verde)">FLOTANTE</div>
-          </div>
-          <div class="safe-item">
-            <div class="si-ic" id="estopIc" style="background:rgba(39,174,96,.13)">
-              <svg viewBox="0 0 24 24" fill="none" stroke="#27AE60" stroke-width="2"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4"/></svg>
-            </div>
-            <div class="si-txt">
-              <div class="t">Pulsador parada de emergencia</div>
-              <div class="s">Seta de seguridad general</div>
-            </div>
-            <div class="si-st" id="estopSt" style="background:rgba(39,174,96,.13);color:var(--verde)">LIBERADO</div>
-          </div>
-        </div>
-      </div>
+  </div>
+
+  <!-- Seguridad y autonomía — Panel full width -->
+  <div class="card" style="margin-bottom:16px">
+    <h4>🛡️ Seguridad y autonomía — Circuito de comando</h4>
+    <div class="card-body">
+      <div class="sec-phases" id="secPhases"></div>
+      <div class="ccm-stats-section" id="secStats"></div>
+      <div class="sec-status-row" id="secStatus"></div>
     </div>
   </div>
 
@@ -1048,6 +1033,177 @@ function renderElec(){
     <div class="phase-chip"><span class="led led-ok"></span>Secuencia de fases ${elec.secuencia}</div>`;
 }
 
+/* ====== Seguridad y autonomía ====== */
+const secData = {
+  vAlim: 218.2,   // Tensión alimentación cargador (214-220 VCA)
+  vSalCarg: 24.15, // Tensión comando salida cargador (24.1-24.2 VCC)
+  vSalBat: 24.0,   // Tensión comando salida baterías (23.9-24.1 VCC)
+  vEstab: 24.0,    // Tensión comando salida estabilizador (24 VCC fijo)
+  autoMin: 58.5    // Autonomía batería (0-60 min)
+};
+
+const SEC_PHASES = [
+  {key:'vAlim',    label:'V Alim. Cargador',     unit:'VCA', vKey:'vAlim',    min:200, max:240, gaugeMin:200, gaugeMax:240, chartId:'secChart0'},
+  {key:'vSalCarg', label:'V Salida Cargador',     unit:'VCC', vKey:'vSalCarg', min:23.5,max:25,  gaugeMin:23, gaugeMax:25.5, chartId:'secChart1'},
+  {key:'vSalBat',  label:'V Salida Baterías',     unit:'VCC', vKey:'vSalBat',  min:23,  max:25,  gaugeMin:23, gaugeMax:25.5, chartId:'secChart2'},
+  {key:'vEstab',   label:'V Estabilizador',        unit:'VCC', vKey:'vEstab',   min:23,  max:25,  gaugeMin:23, gaugeMax:25.5, chartId:'secChart3'},
+  {key:'autoMin',  label:'Autonomía Batería',      unit:'min', vKey:'autoMin',  min:0,   max:60,  gaugeMin:0,  gaugeMax:70,   chartId:'secChart4'}
+];
+
+const SEC_HIST_MAX = 120;
+const secHist = {labels:[], vAlim:[], vSalCarg:[], vSalBat:[], vEstab:[], autoMin:[]};
+const secReadings = {vAlim:[], vSalCarg:[], vSalBat:[], vEstab:[], autoMin:[]};
+let secReadingId = 45200;
+const secStatsAcc = {
+  vAlim:{sum:0,count:0,max:-Infinity,min:Infinity,sumSq:0},
+  vSalCarg:{sum:0,count:0,max:-Infinity,min:Infinity,sumSq:0},
+  vSalBat:{sum:0,count:0,max:-Infinity,min:Infinity,sumSq:0},
+  vEstab:{sum:0,count:0,max:-Infinity,min:Infinity,sumSq:0},
+  autoMin:{sum:0,count:0,max:-Infinity,min:Infinity,sumSq:0}
+};
+let secCharts = [null, null, null, null, null];
+
+function pushSecHistory(){
+  const now = new Date();
+  const ts = now.toLocaleTimeString('es-PY',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+  secHist.labels.push(ts);
+  SEC_PHASES.forEach(p => {
+    const v = secData[p.vKey];
+    secHist[p.key].push(v);
+    const s = secStatsAcc[p.key];
+    s.sum += v; s.count++; s.sumSq += v*v;
+    if(v > s.max) s.max = v;
+    if(v < s.min) s.min = v;
+    secReadingId++;
+    const d = now.toLocaleDateString('es-PY',{day:'2-digit',month:'2-digit',year:'numeric'});
+    const h = now.toLocaleTimeString('es-PY',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+    secReadings[p.key].push({id:secReadingId, v: typeof v === 'number' ? (p.unit==='min' ? v.toFixed(1) : v.toFixed(2)) : v, d, h});
+    if(secReadings[p.key].length > 10) secReadings[p.key].shift();
+  });
+  if(secHist.labels.length > SEC_HIST_MAX){
+    secHist.labels.shift();
+    SEC_PHASES.forEach(p => secHist[p.key].shift());
+  }
+}
+
+function initSecCharts(){
+  SEC_PHASES.forEach((p,i) => {
+    const cv = document.getElementById(p.chartId);
+    if(!cv) return;
+    secCharts[i] = new Chart(cv, {
+      type:'line',
+      data:{labels:secHist.labels, datasets:[{
+        label:p.label, data:secHist[p.key],
+        borderColor:'#27AE60', backgroundColor:'rgba(39,174,96,.08)',
+        borderWidth:0.75, pointRadius:1, pointBackgroundColor:'#27AE60',
+        tension:.4, fill:true
+      }]},
+      options:{
+        animation:false, responsive:true, maintainAspectRatio:false,
+        interaction:{mode:'index',intersect:false},
+        plugins:{legend:{display:false}},
+        scales:{
+          x:{ticks:{maxTicksLimit:4,font:{size:7},maxRotation:0},grid:{color:'#f0f0f0'}},
+          y:{ticks:{font:{size:7}},grid:{color:'#f0f0f0'},min:p.min,max:p.max}
+        }
+      }
+    });
+  });
+}
+
+function updateSecCharts(){
+  secCharts.forEach((c,i) => {
+    if(!c) return;
+    c.data.labels = secHist.labels;
+    c.data.datasets[0].data = secHist[SEC_PHASES[i].key];
+    c.update();
+  });
+}
+
+function buildSecStructure(){
+  const wrap = document.getElementById('secPhases');
+  if(!wrap) return;
+  wrap.innerHTML = SEC_PHASES.map((p,i) => `<div class="sec-col">
+    <div class="sec-col-head">${p.label}</div>
+    <div class="sec-top">
+      <div class="sec-chart-wrap"><canvas id="${p.chartId}"></canvas></div>
+      <div class="sec-gauge-big" id="secGaugeBig${i}"></div>
+    </div>
+    <div class="sec-mid">
+      <div class="ccm-table-wrap" style="max-height:120px">
+        <table class="ccm-table">
+          <thead><tr><th>id</th><th>${p.unit}</th><th>Día</th><th>Hora</th></tr></thead>
+          <tbody id="secTbody${i}"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>`).join('');
+}
+
+function renderSec(){
+  SEC_PHASES.forEach((p,i) => {
+    const v = secData[p.vKey];
+    const vDisplay = p.unit==='min' ? v.toFixed(1) : v.toFixed(2);
+    const vRound = p.unit==='min' ? Math.round(v) : v.toFixed(1);
+    const gb = document.getElementById('secGaugeBig'+i);
+    if(gb) gb.innerHTML = `${semiGaugeSVG(v, p.gaugeMin, p.gaugeMax, '#27AE60', 120, 68)}
+      <div class="sg-val">${vRound}</div>
+      <div class="sg-lbl">${p.unit}</div>
+      <div class="sg-sub">${vDisplay}</div>
+      <div class="sg-site">EB 13 ZS</div>`;
+    const tb = document.getElementById('secTbody'+i);
+    if(tb){
+      const rows = secReadings[p.key].map((r,ri) =>
+        `<tr${ri===0?' style="background:#e8f5e9"':''}><td>${ri===0?'▸ ':''}<strong>${r.id}</strong></td><td>${r.v}</td><td>${r.d}</td><td>${r.h}</td></tr>`
+      ).reverse().join('');
+      tb.innerHTML = rows || '<tr><td colspan="4" style="text-align:center;color:#999">sin datos</td></tr>';
+    }
+  });
+}
+
+function renderSecStats(){
+  const wrap = document.getElementById('secStats');
+  if(!wrap) return;
+  const now = new Date();
+  const ts = now.toLocaleDateString('es-PY') + ' ' + now.toLocaleTimeString('es-PY',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+  const rows = SEC_PHASES.map(p => {
+    const s = secStatsAcc[p.key];
+    if(s.count < 2) return `<tr><td style="text-align:left"><strong>${p.label}</strong></td><td colspan="7" style="color:#999">Acumulando datos...</td></tr>`;
+    const mean = s.sum / s.count;
+    const stdDev = Math.sqrt((s.sumSq - s.sum*s.sum/s.count)/(s.count-1));
+    const z70=1.04, z20=1.28, z10=1.645;
+    const dec = p.unit==='min' ? 1 : 2;
+    return `<tr>
+      <td style="text-align:left"><strong>${p.label}</strong></td>
+      <td>${mean.toFixed(dec)}</td><td>${s.max.toFixed(dec)}</td><td>${s.min.toFixed(dec)}</td><td>${stdDev.toFixed(dec)}</td>
+      <td>${(mean+z70*stdDev).toFixed(dec)} / ${(mean-z70*stdDev).toFixed(dec)}</td>
+      <td>${(mean+z20*stdDev).toFixed(dec)} / ${(mean-z20*stdDev).toFixed(dec)}</td>
+      <td>${(mean+z10*stdDev).toFixed(dec)} / ${(mean-z10*stdDev).toFixed(dec)}</td>
+    </tr>`;
+  }).join('');
+  wrap.innerHTML = `
+    <table class="ccm-stats-tbl">
+      <thead><tr>
+        <th>${ts}</th><th>Media</th><th>Máximo</th><th>Mínimo</th><th>Desvío Est.</th>
+        <th>Máx/Mín Prob. 70%</th><th>Máx/Mín Prob. 20%</th><th>Máx/Mín Prob. 10%</th>
+      </tr></thead>
+      <tbody>${rows}</tbody>
+    </table>`;
+}
+
+function renderSecStatus(){
+  const wrap = document.getElementById('secStatus');
+  if(!wrap) return;
+  const battOk = secData.autoMin > 30;
+  const estabOk = Math.abs(secData.vEstab - 24.0) < 0.5;
+  const cargOk = secData.vAlim > 210;
+  wrap.innerHTML = `
+    <div class="sec-status-chip"><span class="led ${cargOk?'led-ok':'led-bad'}"></span>Alimentación cargador</div>
+    <div class="sec-status-chip"><span class="led ${estabOk?'led-ok':'led-bad'}"></span>Estabilizador de tensión</div>
+    <div class="sec-status-chip"><span class="led ${battOk?'led-ok':'led-bad'}"></span>Autonomía ${secData.autoMin.toFixed(0)} min</div>
+    <div class="sec-status-chip"><span class="led led-ok"></span>Pulsador emergencia LIBERADO</div>`;
+}
+
 /* ====== Hidráulico ====== */
 let wellLevel = 2.75; // m
 const WELL_MAX = 3.9;
@@ -1306,18 +1462,26 @@ function simulate(){
   elec.vL3L1=+((elec.vL3+elec.vL1)/2*SQRT3).toFixed(1);
   const vmax=Math.max(elec.vL1,elec.vL2,elec.vL3), vmin=Math.min(elec.vL1,elec.vL2,elec.vL3), vavg=(elec.vL1+elec.vL2+elec.vL3)/3;
   elec.asimetria=((vmax-vmin)/vavg)*100;
+  // Seguridad
+  secData.vAlim = jitter(218.2, 1.5);
+  secData.vSalCarg = Math.min(24.2, Math.max(24.1, jitter(24.15, 0.03)));
+  secData.vSalBat = Math.min(24.1, Math.max(23.9, jitter(24.0, 0.05)));
+  secData.vEstab = jitter(24.0, 0.02);
+  secData.autoMin = Math.min(60, Math.max(45, jitter(58.5, 1.5)));
   // Pozo: oscila entre arranque y parada
   wellLevel += (Math.random()-0.45)*0.06;
   wellLevel = Math.max(0.6, Math.min(4.2, wellLevel));
-  renderPumps(); renderElec(); renderWell();
+  renderPumps(); renderElec(); renderSec(); renderSecStats(); renderSecStatus(); renderWell();
   pushCcmHistory(); updateCcmCharts();
+  pushSecHistory(); updateSecCharts();
   pushHistory(); updateCharts(); updateMapPopup();
 }
 
 /* ====== Init ====== */
-buildCcmStructure();
-renderPumps(); renderElec(); renderWell(); renderAlarms(); tickClock(); initMap();
+buildCcmStructure(); buildSecStructure();
+renderPumps(); renderElec(); renderSec(); renderSecStats(); renderSecStatus(); renderWell(); renderAlarms(); tickClock(); initMap();
 pushCcmHistory(); initCcmCharts();
+pushSecHistory(); initSecCharts();
 pushHistory(); initCharts(); initWellZoneChart(); initWellGaussChart();
 setInterval(tickClock,1000);
 setInterval(simulate,2000);
