@@ -161,7 +161,7 @@
   .cvar{text-align:center}
   .cvar .l{font-size:9.5px;color:var(--gris-medio);text-transform:uppercase;font-weight:600}
   .cvar .v{font-size:13px;font-weight:700}
-  .curve-chart-wrap{position:relative;width:100%;height:120px;margin-top:6px}
+  .curve-chart-wrap{position:relative;width:100%;height:140px;margin-top:6px}
 
   /* ===== Grid inferior ===== */
   .grid-lower{display:grid;grid-template-columns:1.4fr 1fr 1fr;gap:16px;align-items:start}
@@ -520,7 +520,7 @@ function updateCharts(){
 const pumpIconSVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="7"/><path d="M12 5v7l4 2"/><path d="M19 12h2M3 12h2"/></svg>';
 
 const pumps = [
-  {id:"B1", sel:"auto", state:"run",  termo:true,  powN:7.8, curN:14.6, rpm:1455, hUse:12840, hMaint:640, pres:3.6, q:64},
+  {id:"B1", sel:"auto", state:"run",  termo:true,  powN:5.1, curN:9.5, rpm:1455, hUse:12840, hMaint:640, pres:10.31, q:25},
   {id:"B2", sel:"auto", state:"off",  termo:true,  powN:0,    curN:0,    rpm:0,    hUse:11920, hMaint:1180,pres:0,   q:0},
   {id:"B3", sel:"man",  state:"fault",termo:false, powN:0,    curN:0,    rpm:0,    hUse:9760,  hMaint:120, pres:0,   q:0}
 ];
@@ -598,7 +598,7 @@ function renderPumps(){
             <span class="corr-badge ${corr.cls}">${corr.txt}</span>
           </div>
           <div class="curve-vars">
-            <div class="cvar"><div class="l">H manométrica</div><div class="v">${p.pres.toFixed(2)} bar</div></div>
+            <div class="cvar"><div class="l">H manométrica</div><div class="v">${p.pres.toFixed(2)} m</div></div>
             <div class="cvar"><div class="l">Pot. absorbida</div><div class="v">${p.powN.toFixed(1)} kW</div></div>
             <div class="cvar"><div class="l">Caudal estim.</div><div class="v">${p.q} L/s</div></div>
           </div>
@@ -611,34 +611,51 @@ function renderPumps(){
 }
 
 /* Algoritmo: zona ideal de la curva de trabajo del fabricante */
+// Datos reales del fabricante Bomba EB13ZS
+const pumpCurveReal = [
+  {q:0, h:12.5, eta:30, ph:0, p2:0, p1:0},
+  {q:5, h:12.06, eta:60, ph:0.59, p2:0.99, p1:1.27},
+  {q:10, h:11.63, eta:65, ph:1.14, p2:1.75, p1:2.24},
+  {q:15, h:11.19, eta:68, ph:1.84, p2:2.71, p1:3.48},
+  {q:20, h:10.75, eta:70, ph:2.58, p2:3.69, p1:4.73},
+  {q:25, h:10.31, eta:72, ph:3.71, p2:5.15, p1:5.05},
+  {q:30, h:9.88, eta:71, ph:4.63, p2:6.52, p1:6.49},
+  {q:35, h:9.44, eta:68, ph:5.54, p2:8.15, p1:8.38},
+  {q:40, h:9.0, eta:62, ph:6.36, p2:10.26, p1:10.86},
+  {q:45, h:8.56, eta:55, ph:7.39, p2:13.44, p1:14.28},
+  {q:50, h:8.13, eta:46, ph:8.43, p2:18.76, p1:19.08}
+];
+// Interpolar eficiencia para un Q dado
+function getEtaAtQ(q){
+  if(q<=0) return 30;
+  if(q>=50) return 46;
+  for(let i=0;i<pumpCurveReal.length-1;i++){
+    const a=pumpCurveReal[i], b=pumpCurveReal[i+1];
+    if(q>=a.q && q<=b.q){
+      const t=(q-a.q)/(b.q-a.q);
+      return a.eta + t*(b.eta-a.eta);
+    }
+  }
+  return 46;
+}
 function correspondencia(p){
   if(p.state!=="run") return {cls:"corr-warn", txt:"BOMBA DETENIDA", dev:0};
-  // Curva garantizada fabricante: caudal esperado en función de presión y potencia
-  const qEsperado = 120 - 16*p.pres + 1.4*p.powN; // modelo simplificado de la curva
-  const dev = ((p.q - qEsperado)/qEsperado)*100;
-  const a = Math.abs(dev);
-  if(a<=8)  return {cls:"corr-ok",  txt:"ZONA IDEAL", dev};
-  if(a<=18) return {cls:"corr-warn",txt:"FUERA DE ÓPTIMO", dev};
-  return {cls:"corr-bad", txt:"DESVIACIÓN CRÍTICA", dev};
+  // Evaluar eficiencia hidráulica en el punto de trabajo actual
+  const eta = getEtaAtQ(p.q);
+  if(eta>=68) return {cls:"corr-ok",  txt:`η=${eta.toFixed(0)}% ÓPTIMO`, dev:eta};
+  if(eta>=60) return {cls:"corr-warn",txt:`η=${eta.toFixed(0)}% ACEPTABLE`, dev:eta};
+  return {cls:"corr-bad", txt:`η=${eta.toFixed(0)}% BAJA EFIC.`, dev:eta};
 }
 
-/* Gráfica suavizada tipo smoothed-line (estilo amCharts) — solo bomba en servicio */
+/* Gráfica multicurva real del fabricante (estilo amCharts smoothed) — solo bomba en servicio */
 const curveCharts = {};
-const curveHistory = {}; // historial de puntos de trabajo por bomba
-const CURVE_HISTORY_MAX = 60; // 2 minutos a 2s intervalo
-// Curva del fabricante (estática)
-const curveData = [
-  {q:0, h:5.0}, {q:10, h:4.85}, {q:20, h:4.6}, {q:30, h:4.3},
-  {q:40, h:3.95}, {q:50, h:3.55}, {q:60, h:3.1}, {q:70, h:2.6},
-  {q:80, h:2.0}, {q:90, h:1.3}, {q:100, h:0.5}
-];
+const curveHistory = {};
+const CURVE_HISTORY_MAX = 60;
 
 function drawCurve(p){
   const cv = document.getElementById("curve-"+p.id);
   if(!cv) return;
-  // Solo graficar bombas en servicio
   if(p.state!=="run"){
-    // Si la bomba no está en servicio, destruir chart y limpiar historial
     if(curveCharts[p.id]){ curveCharts[p.id].destroy(); delete curveCharts[p.id]; }
     if(curveHistory[p.id]) curveHistory[p.id] = [];
     const ctx = cv.getContext("2d");
@@ -648,69 +665,92 @@ function drawCurve(p){
     ctx.fillText("Bomba detenida — sin datos", cv.width/2, cv.height/2);
     return;
   }
-  // Inicializar historial si no existe
   if(!curveHistory[p.id]) curveHistory[p.id] = [];
-  // Agregar punto de trabajo actual al historial
-  curveHistory[p.id].push({x:p.q, y:p.pres});
+  curveHistory[p.id].push({x:p.q, y:getEtaAtQ(p.q)});
   if(curveHistory[p.id].length > CURVE_HISTORY_MAX) curveHistory[p.id].shift();
 
-  // Si el chart ya existe y el canvas es el mismo, solo actualizar datos
   if(curveCharts[p.id] && curveCharts[p.id].canvas === cv){
     const chart = curveCharts[p.id];
-    chart.data.datasets[1].data = [...curveHistory[p.id]];
-    const inZone = p.q>=40 && p.q<=68;
-    chart.data.datasets[2].data = [{x:p.q, y:p.pres}];
-    chart.data.datasets[2].backgroundColor = inZone ? '#27AE60' : '#E74C3C';
+    chart.data.datasets[3].data = [...curveHistory[p.id]];
+    const eta = getEtaAtQ(p.q);
+    chart.data.datasets[4].data = [{x:p.q, y:eta}];
+    chart.data.datasets[4].backgroundColor = eta>=68 ? '#81C784' : eta>=60 ? '#FFB74D' : '#E57373';
     chart.update('none');
     return;
   }
-  // Si el canvas cambió (innerHTML rebuild), destruir chart viejo
   if(curveCharts[p.id]){ curveCharts[p.id].destroy(); delete curveCharts[p.id]; }
 
-  // Crear chart por primera vez
-  const inZone = p.q>=40 && p.q<=68;
+  const eta = getEtaAtQ(p.q);
   curveCharts[p.id] = new Chart(cv, {
     type:'scatter',
     data:{
       datasets:[
         {
-          label:'Curva H-Q fabricante',
-          data: curveData.map(d=>({x:d.q, y:d.h})),
-          borderColor:'#4A90E2',
-          backgroundColor:'rgba(74,144,226,.12)',
-          borderWidth:2.5,
+          label:'H (m)',
+          data: pumpCurveReal.map(d=>({x:d.q, y:d.h})),
+          borderColor:'#90CAF9',
+          backgroundColor:'rgba(144,202,249,.08)',
+          borderWidth:0.75,
           tension:0.4,
           fill:true,
           showLine:true,
-          pointRadius:3,
-          pointBackgroundColor:'#4A90E2',
-          pointBorderColor:'#fff',
-          pointBorderWidth:1.5,
-          pointHoverRadius:5
+          pointRadius:2,
+          pointBackgroundColor:'#90CAF9',
+          pointBorderWidth:0,
+          yAxisID:'yH'
         },
         {
-          label:'Recorrido operativo',
+          label:'η (%)',
+          data: pumpCurveReal.map(d=>({x:d.q, y:d.eta})),
+          borderColor:'#81C784',
+          backgroundColor:'rgba(129,199,132,.06)',
+          borderWidth:0.75,
+          tension:0.4,
+          fill:true,
+          showLine:true,
+          pointRadius:2,
+          pointBackgroundColor:'#81C784',
+          pointBorderWidth:0,
+          yAxisID:'yEta'
+        },
+        {
+          label:'P1 (kW)',
+          data: pumpCurveReal.map(d=>({x:d.q, y:d.p1})),
+          borderColor:'#F4A582',
+          backgroundColor:'rgba(244,165,130,.06)',
+          borderWidth:0.75,
+          tension:0.4,
+          fill:false,
+          showLine:true,
+          pointRadius:2,
+          pointBackgroundColor:'#F4A582',
+          pointBorderWidth:0,
+          yAxisID:'yH'
+        },
+        {
+          label:'Recorrido η',
           data: [...curveHistory[p.id]],
-          borderColor:'#F39C12',
-          backgroundColor:'rgba(243,156,18,.08)',
-          borderWidth:1.5,
+          borderColor:'rgba(255,183,77,.5)',
+          borderWidth:0.5,
           tension:0.3,
           fill:false,
           showLine:true,
-          pointRadius:1.5,
-          pointBackgroundColor:'#F39C12',
-          pointBorderWidth:0
+          pointRadius:1,
+          pointBackgroundColor:'#FFB74D',
+          pointBorderWidth:0,
+          yAxisID:'yEta'
         },
         {
           label:'Punto actual',
-          data:[{x:p.q, y:p.pres}],
+          data:[{x:p.q, y:eta}],
           borderColor:'transparent',
-          backgroundColor: inZone ? '#27AE60' : '#E74C3C',
-          pointRadius:7,
+          backgroundColor: eta>=68 ? '#81C784' : eta>=60 ? '#FFB74D' : '#E57373',
+          pointRadius:6,
           pointBorderColor:'#fff',
-          pointBorderWidth:2,
+          pointBorderWidth:1.5,
           pointStyle:'circle',
-          showLine:false
+          showLine:false,
+          yAxisID:'yEta'
         }
       ]
     },
@@ -719,30 +759,41 @@ function drawCurve(p){
       maintainAspectRatio:false,
       animation:false,
       plugins:{
-        legend:{display:false},
+        legend:{display:true, position:'top', labels:{boxWidth:8, font:{size:7}, padding:4, color:'#B0B0B0'}},
         tooltip:{
           callbacks:{
-            label:(item)=> item.datasetIndex===0
-              ? `Curva: H=${item.raw.y.toFixed(2)} bar · Q=${item.raw.x} L/s`
-              : item.datasetIndex===2
-              ? `Actual: H=${item.raw.y.toFixed(2)} bar · Q=${item.raw.x} L/s`
-              : `Hist: H=${item.raw.y.toFixed(2)} bar · Q=${item.raw.x} L/s`
+            label:(item)=>{
+              const ds=item.datasetIndex;
+              if(ds===0) return `H: ${item.raw.y.toFixed(1)} m`;
+              if(ds===1) return `η: ${item.raw.y.toFixed(0)}%`;
+              if(ds===2) return `P1: ${item.raw.y.toFixed(2)} kW`;
+              if(ds===4) return `Actual η: ${item.raw.y.toFixed(0)}% · Q: ${item.raw.x} L/s`;
+              return `η: ${item.raw.y.toFixed(0)}%`;
+            }
           }
         }
       },
       scales:{
         x:{
           type:'linear',
-          title:{display:true, text:'Q (L/s)', font:{size:9}, color:'#B0B0B0'},
-          grid:{color:'rgba(0,0,0,.04)'},
-          ticks:{font:{size:8}, color:'#B0B0B0'},
-          min:0, max:100
+          title:{display:true, text:'Q (L/s)', font:{size:8}, color:'#B0B0B0'},
+          grid:{color:'rgba(0,0,0,.03)'},
+          ticks:{font:{size:7}, color:'#B0B0B0'},
+          min:0, max:55
         },
-        y:{
-          title:{display:true, text:'H (bar)', font:{size:9}, color:'#B0B0B0'},
-          grid:{color:'rgba(0,0,0,.06)'},
-          ticks:{font:{size:8}, color:'#B0B0B0'},
-          min:0, max:5.5
+        yH:{
+          position:'left',
+          title:{display:true, text:'H(m) / P1(kW)', font:{size:7}, color:'#90CAF9'},
+          grid:{color:'rgba(0,0,0,.04)'},
+          ticks:{font:{size:7}, color:'#B0B0B0'},
+          min:0, max:20
+        },
+        yEta:{
+          position:'right',
+          title:{display:true, text:'η (%)', font:{size:7}, color:'#81C784'},
+          grid:{drawOnChartArea:false},
+          ticks:{font:{size:7}, color:'#B0B0B0'},
+          min:0, max:80
         }
       }
     }
@@ -789,7 +840,7 @@ let mapMarker = null;
 function buildPopupHTML(){
   const activas = pumps.filter(p=>p.state==="run");
   const bombasInfo = activas.length
-    ? activas.map(p=>`<tr><td style="padding:2px 6px;font-weight:700;color:#4A90E2">Bomba ${p.id}</td><td style="padding:2px 6px">${p.powN.toFixed(1)} kW</td><td style="padding:2px 6px">${p.pres.toFixed(2)} bar</td></tr>`).join('')
+    ? activas.map(p=>`<tr><td style="padding:2px 6px;font-weight:700;color:#4A90E2">Bomba ${p.id}</td><td style="padding:2px 6px">${p.powN.toFixed(1)} kW</td><td style="padding:2px 6px">${p.pres.toFixed(2)} m</td></tr>`).join('')
     : '<tr><td colspan="3" style="padding:4px 6px;color:#B0B0B0;font-style:italic">Ninguna bomba en servicio</td></tr>';
   const lvlColor = wellLevel > 3.5 ? '#E74C3C' : wellLevel > 2.0 ? '#4A90E2' : '#F39C12';
   return `<div style="font-family:Segoe UI,Arial,sans-serif;font-size:12px;min-width:200px">
@@ -867,11 +918,15 @@ function simulate(){
   // Bomba en servicio: pequeñas variaciones
   pumps.forEach(p=>{
     if(p.state==="run"){
-      p.powN = Math.max(0, jitter(7.8,0.6));
-      p.curN = Math.max(0, jitter(14.6,0.8));
-      p.rpm  = Math.round(jitter(1455,18));
-      p.pres = jitter(3.6,0.12);
-      p.q    = Math.round(jitter(64,2.5));
+      p.q    = Math.max(1, Math.min(50, Math.round(jitter(25,2))));
+      // Interpolar valores reales de la curva según Q actual
+      let hi=0; for(let i=0;i<pumpCurveReal.length-1;i++){if(p.q>=pumpCurveReal[i].q&&p.q<=pumpCurveReal[i+1].q){hi=i;break;}}
+      const a=pumpCurveReal[hi], b=pumpCurveReal[hi+1]||a;
+      const t=b.q>a.q?(p.q-a.q)/(b.q-a.q):0;
+      p.pres = +(a.h+t*(b.h-a.h)+jitter(0,0.08)).toFixed(2);
+      p.powN = +(a.p1+t*(b.p1-a.p1)+jitter(0,0.15)).toFixed(2);
+      p.curN = +(p.powN*1.88+jitter(0,0.3)).toFixed(1); // I≈P1×1.88 (motor 3ph 400V)
+      p.rpm  = Math.round(jitter(1455,12));
     }
   });
   // Eléctrico
