@@ -80,7 +80,7 @@
   .sp-control input[type=range]{flex:1;height:4px;accent-color:var(--celeste);cursor:pointer}
   .sp-control .sp-val{font-weight:700;color:var(--celeste);min-width:52px;text-align:center}
   .sp-control .sp-eta{font-size:10px;color:var(--gris-medio);white-space:nowrap}
-  .pump-event-log{font-size:10px;color:var(--gris-medio);margin-top:4px;max-height:36px;overflow-y:auto;line-height:1.3}
+  .pump-event-log{font-size:10px;color:var(--gris-medio);margin-top:4px;max-height:56px;overflow-y:auto;line-height:1.3}
   .pump-event-log .ev-on{color:var(--verde);font-weight:600}
   .pump-event-log .ev-off{color:var(--celeste);font-weight:600}
   .st-al .dot{background:var(--rojo)}
@@ -372,7 +372,7 @@
               <label>Set Point arranque 2da bomba:</label>
               <input type="range" id="spSlider" min="1.5" max="3.9" step="0.1" value="3.5">
               <span class="sp-val" id="spValue">3.50 m</span>
-              <span class="sp-eta">η B1: <strong id="spEtaDisplay">72%</strong></span>
+              <span class="sp-eta">η lead: <strong id="spEtaDisplay">72%</strong> (óptimo: 68-75%)</span>
             </div>
             <div class="pump-event-log" id="pumpEventLog"></div>
           </div>
@@ -1765,8 +1765,11 @@ function jitter(v,amp){return v + (Math.random()-0.5)*amp;}
 const WELL_AREA = 4.0;       // m² sección del pozo
 const INFLOW_BASE = 22;      // L/s caudal de ingreso base
 const SIM_DT = 2;            // segundos por tick de simulación
-const ETA_START_B2 = 70;     // η% umbral para arranque B2
-const ETA_STOP_B2 = 72;      // η% umbral para parada B2 (histéresis)
+const ETA_OPT_MIN = 68;     // η% límite inferior del rango óptimo
+const ETA_OPT_MAX = 75;     // η% límite superior del rango óptimo
+const ETA_CRITICAL = 67;    // η% umbral crítico — apagar bomba de más horas
+const ETA_SUSTAIN_TICKS = 5; // ticks sostenidos fuera de rango para arrancar B2
+let etaOutCount = 0;          // contador de ticks fuera de rango
 
 function addPumpEvent(msg){
   const d = new Date();
@@ -1787,76 +1790,124 @@ function interpolatePump(p){
   p.rpm  = Math.round(jitter(1455,12));
 }
 
+function stopPump(p){
+  p.state = "off"; p.powN=0; p.curN=0; p.rpm=0; p.q=0; p.pres=0;
+}
+
 function simulate(){
   const z = WELL_ZONES;
-  const arranqueB1 = z[2].min;   // nivel arranque 1ra bomba
-  const paradaB1   = z[1].max;   // nivel parada bombas (= arranqueB1)
-  const nivelMuyBajo = z[0].max;
+  const nivelArranque = z[2].min;
+  const nivelMuyBajo  = z[0].max;
 
   // === Hidráulico: nivel del pozo ===
-  const inflow = Math.max(0, jitter(INFLOW_BASE, 4)) / 1000; // m³/s
+  const inflow = Math.max(0, jitter(INFLOW_BASE, 4)) / 1000;
   let outflow = 0;
   pumps.forEach(p=>{ if(p.state==="run") outflow += (p.q / 1000); });
   const dLevel = (inflow - outflow) / WELL_AREA * SIM_DT;
   wellLevel += dLevel;
   wellLevel = Math.max(0.3, Math.min(getWellMax()+0.1, wellLevel));
 
-  // === Control automático B1 por nivel ===
-  if(pumps[0].state==="off" && wellLevel >= arranqueB1){
-    pumps[0].state = "run"; pumps[0].sel = "auto";
-    addPumpEvent('<span class="ev-on">▶ B1 ARRANQUE</span> — Nivel '+wellLevel.toFixed(2)+' m ≥ '+arranqueB1+' m');
-  }
-  if(pumps[0].state==="run" && wellLevel <= nivelMuyBajo){
-    pumps[0].state = "off"; pumps[0].powN=0; pumps[0].curN=0; pumps[0].rpm=0; pumps[0].q=0; pumps[0].pres=0;
-    addPumpEvent('<span class="ev-off">■ B1 PARADA</span> — Nivel '+wellLevel.toFixed(2)+' m ≤ '+nivelMuyBajo+' m');
+  // === Bombas disponibles (excluir B3 en fault) ===
+  const disponibles = pumps.filter(p=>p.state!=="fault");
+  const enServicio = disponibles.filter(p=>p.state==="run");
+  const apagadas   = disponibles.filter(p=>p.state==="off");
+
+  // === 1. ARRANQUE POR NIVEL: cuando el nivel está en zona de arranque ===
+  if(enServicio.length === 0 && wellLevel >= nivelArranque && apagadas.length > 0){
+    // Arrancar la bomba con MENOS horas acumuladas (equilibrar desgaste)
+    const elegida = apagadas.reduce((a,b) => a.hUse <= b.hUse ? a : b);
+    elegida.state = "run"; elegida.sel = "auto"; elegida.termo = true;
+    addPumpEvent('<span class="ev-on">▶ '+elegida.id+' ARRANQUE</span> — Nivel '+wellLevel.toFixed(2)+' m ≥ '+nivelArranque+' m (menor horas: '+elegida.hUse.toLocaleString('es')+' h)');
   }
 
-  // === Caudal B1 en función del nivel (mayor nivel → mayor demanda) ===
-  if(pumps[0].state==="run"){
+  // === 2. PARADA POR NIVEL MUY BAJO: todas paran si el nivel es crítico bajo ===
+  if(wellLevel <= nivelMuyBajo){
+    enServicio.forEach(p=>{
+      stopPump(p);
+      addPumpEvent('<span class="ev-off">■ '+p.id+' PARADA</span> — Nivel '+wellLevel.toFixed(2)+' m ≤ '+nivelMuyBajo+' m');
+    });
+    etaOutCount = 0;
+  }
+
+  // === 3. CALCULAR Q Y η PARA BOMBAS EN SERVICIO ===
+  const running = disponibles.filter(p=>p.state==="run");
+  const nRunning = running.length;
+  if(nRunning > 0){
     const demandFactor = Math.max(0, Math.min(1, (wellLevel - nivelMuyBajo) / (spB2 - nivelMuyBajo)));
-    const qBase = 18 + demandFactor * 22; // Q varía de 18 a 40 L/s según nivel
-    const nRunning = pumps.filter(p=>p.state==="run").length;
-    // Si B2 también corre, cada bomba toma la mitad de la demanda
-    pumps[0].q = Math.max(5, Math.min(50, Math.round(jitter(qBase / nRunning, 1))));
-    interpolatePump(pumps[0]);
+    const qBase = 18 + demandFactor * 22;
+    running.forEach(p=>{
+      p.q = Math.max(5, Math.min(50, Math.round(jitter(qBase / nRunning, 1))));
+      interpolatePump(p);
+    });
   }
 
-  // === Control B2 basado en η de B1 ===
-  const etaB1 = pumps[0].state==="run" ? getEtaAtQ(pumps[0].q) : 72;
-  if(pumps[0].state==="run" && pumps[1].state==="off" && etaB1 < ETA_START_B2){
-    pumps[1].state = "run"; pumps[1].sel = "auto"; pumps[1].termo = true;
-    addPumpEvent('<span class="ev-on">▶ B2 ARRANQUE</span> — η B1='+etaB1.toFixed(0)+'% < '+ETA_START_B2+'%');
-    // Recalcular Q repartido
-    const nRunning = 2;
-    const qBase = 18 + Math.max(0, Math.min(1, (wellLevel - nivelMuyBajo) / (spB2 - nivelMuyBajo))) * 22;
-    pumps[0].q = Math.max(5, Math.min(50, Math.round(jitter(qBase / nRunning, 1))));
-    pumps[1].q = Math.max(5, Math.min(50, Math.round(jitter(qBase / nRunning, 1))));
-    interpolatePump(pumps[0]);
-    interpolatePump(pumps[1]);
-  }
-  if(pumps[1].state==="run"){
-    const etaB1now = getEtaAtQ(pumps[0].q);
-    if(etaB1now >= ETA_STOP_B2 && wellLevel < spB2){
-      pumps[1].state = "off"; pumps[1].powN=0; pumps[1].curN=0; pumps[1].rpm=0; pumps[1].q=0; pumps[1].pres=0;
-      addPumpEvent('<span class="ev-off">■ B2 PARADA</span> — η B1='+etaB1now.toFixed(0)+'% ≥ '+ETA_STOP_B2+'%');
+  // === 4. LÓGICA DE 2DA BOMBA BASADA EN η ===
+  const runningNow = disponibles.filter(p=>p.state==="run");
+  const offNow = disponibles.filter(p=>p.state==="off");
+
+  if(runningNow.length === 1){
+    // Solo 1 bomba: verificar si η está fuera de rango óptimo 68-75%
+    const lead = runningNow[0];
+    const etaLead = getEtaAtQ(lead.q);
+    if(etaLead < ETA_OPT_MIN || etaLead > ETA_OPT_MAX){
+      etaOutCount++;
     } else {
-      // B2 sigue corriendo — actualizar sus valores
-      const nRunning = pumps.filter(p=>p.state==="run").length;
-      const qBase = 18 + Math.max(0, Math.min(1, (wellLevel - nivelMuyBajo) / (spB2 - nivelMuyBajo))) * 22;
-      pumps[0].q = Math.max(5, Math.min(50, Math.round(jitter(qBase / nRunning, 1))));
-      pumps[1].q = Math.max(5, Math.min(50, Math.round(jitter(qBase / nRunning, 1))));
-      interpolatePump(pumps[0]);
-      interpolatePump(pumps[1]);
+      etaOutCount = 0;
+    }
+    // Desvío SOSTENIDO → arrancar 2da bomba
+    if(etaOutCount >= ETA_SUSTAIN_TICKS && offNow.length > 0){
+      const segunda = offNow.reduce((a,b) => a.hUse <= b.hUse ? a : b);
+      segunda.state = "run"; segunda.sel = "auto"; segunda.termo = true;
+      addPumpEvent('<span class="ev-on">▶ '+segunda.id+' ARRANQUE</span> — η '+lead.id+'='+etaLead.toFixed(0)+'% fuera de rango '+ETA_OPT_MIN+'-'+ETA_OPT_MAX+'% ('+etaOutCount+' ticks)');
+      etaOutCount = 0;
+      // Recalcular Q repartido inmediatamente
+      const demandFactor = Math.max(0, Math.min(1, (wellLevel - nivelMuyBajo) / (spB2 - nivelMuyBajo)));
+      const qBase = 18 + demandFactor * 22;
+      [lead, segunda].forEach(p=>{
+        p.q = Math.max(5, Math.min(50, Math.round(jitter(qBase / 2, 1))));
+        interpolatePump(p);
+      });
     }
   }
 
-  // Actualizar display η
+  if(runningNow.length === 2){
+    etaOutCount = 0;
+    // Identificar bomba de mayor y menor horas
+    const sorted = [...runningNow].sort((a,b) => a.hUse - b.hUse);
+    const menorHoras = sorted[0];
+    const mayorHoras = sorted[1];
+    const etaMenor = getEtaAtQ(menorHoras.q);
+    const etaMayor = getEtaAtQ(mayorHoras.q);
+
+    // 4a. η < 67% con 2 bombas → apagar la de MAYOR horas (protección)
+    if(etaMenor < ETA_CRITICAL && etaMayor < ETA_CRITICAL){
+      stopPump(mayorHoras);
+      addPumpEvent('<span class="ev-off">■ '+mayorHoras.id+' PARADA</span> — η < '+ETA_CRITICAL+'% con 2 bombas → proteger motor ('+mayorHoras.hUse.toLocaleString('es')+' h)');
+    }
+    // 4b. La de menor horas puede sola (η dentro de 68-75%) → apagar la de mayor horas
+    else {
+      // Simular: si la de menor horas tomara toda la carga, ¿estaría dentro del rango?
+      const demandFactor = Math.max(0, Math.min(1, (wellLevel - nivelMuyBajo) / (spB2 - nivelMuyBajo)));
+      const qSola = 18 + demandFactor * 22;
+      const etaSola = getEtaAtQ(Math.round(qSola));
+      if(etaSola >= ETA_OPT_MIN && etaSola <= ETA_OPT_MAX){
+        stopPump(mayorHoras);
+        addPumpEvent('<span class="ev-off">■ '+mayorHoras.id+' PARADA</span> — '+menorHoras.id+' puede sola (η estimada='+etaSola.toFixed(0)+'% dentro de '+ETA_OPT_MIN+'-'+ETA_OPT_MAX+'%)');
+      }
+    }
+  }
+
+  // === Actualizar display η ===
   const etaDisplay = document.getElementById('spEtaDisplay');
   if(etaDisplay){
-    const eta = pumps[0].state==="run" ? getEtaAtQ(pumps[0].q) : 0;
+    const lead = disponibles.find(p=>p.state==="run");
+    const eta = lead ? getEtaAtQ(lead.q) : 0;
     etaDisplay.textContent = eta.toFixed(0)+'%';
-    etaDisplay.style.color = eta>=ETA_STOP_B2?'var(--verde)':eta>=ETA_START_B2?'var(--naranja)':'var(--rojo)';
+    etaDisplay.style.color = eta>=ETA_OPT_MIN&&eta<=ETA_OPT_MAX?'var(--verde)':eta>=ETA_CRITICAL?'var(--naranja)':'var(--rojo)';
   }
+
+  // === Acumular horas de uso para bombas en servicio ===
+  pumps.forEach(p=>{ if(p.state==="run") p.hUse += SIM_DT / 3600; });
 
   // === Eléctrico (escala con bombas activas) ===
   const nBombas = pumps.filter(p=>p.state==="run").length;
