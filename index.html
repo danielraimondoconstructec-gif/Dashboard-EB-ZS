@@ -189,16 +189,13 @@
   .ccm-gauge-big .sg-lbl{font-size:10px;color:var(--gris-medio);font-weight:600;text-transform:uppercase;margin-top:2px}
   .ccm-gauge-big .sg-sub{font-size:12px;font-weight:700;color:var(--verde);margin-top:1px}
   .ccm-gauge-big .sg-site{font-size:9px;color:var(--gris-medio);margin-top:2px}
-  .ccm-mid{display:grid;grid-template-columns:1fr auto;gap:8px;padding:8px 10px;border-top:1px solid #e8e8e8}
+  .ccm-mid{padding:8px 10px;border-top:1px solid #e8e8e8}
   .ccm-table-wrap{overflow-y:auto;max-height:145px;border:1px solid #e0e0e0;border-radius:4px;background:#fff}
   .ccm-table{width:100%;border-collapse:collapse;font-size:9.5px}
   .ccm-table th{background:#f4f6fa;padding:3px 5px;font-weight:700;text-align:left;color:var(--gris-medio);border-bottom:1px solid #e0e0e0;position:sticky;top:0}
   .ccm-table td{padding:2px 5px;border-bottom:1px solid #f0f0f0;white-space:nowrap}
   .ccm-table tr:hover td{background:#f0f5ff}
-  .ccm-gauge-sm{display:flex;flex-direction:column;align-items:center;min-width:95px;justify-content:center}
-  .ccm-gauge-sm .sg-val{font-size:22px;font-weight:700;color:var(--gris-oscuro);margin-top:-4px}
-  .ccm-gauge-sm .sg-lbl{font-size:9px;color:var(--gris-medio);font-weight:600;margin-top:2px}
-  .ccm-gauge-sm .sg-sub{font-size:10px;font-weight:700;color:var(--celeste);margin-top:1px}
+
   .ccm-stats-section{margin-top:14px;overflow-x:auto}
   .ccm-stats-tbl{width:100%;border-collapse:collapse;font-size:10.5px}
   .ccm-stats-tbl th{background:#f4f6fa;padding:6px 8px;font-weight:700;text-align:center;color:var(--gris-medio);border:1px solid #e0e0e0;font-size:9.5px;text-transform:uppercase;white-space:nowrap}
@@ -979,7 +976,6 @@ function buildCcmStructure(){
           <tbody id="ccmTbody${i}"></tbody>
         </table>
       </div>
-      <div class="ccm-gauge-sm" id="ccmGaugeSm${i}"></div>
     </div>
   </div>`).join('');
 }
@@ -1004,12 +1000,7 @@ function renderCcm(){
       ).reverse().join('');
       tb.innerHTML = rows || '<tr><td colspan="4" style="text-align:center;color:#999">sin datos</td></tr>';
     }
-    // Small gauge
-    const gs = document.getElementById('ccmGaugeSm'+i);
-    if(gs) gs.innerHTML = `${semiGaugeSVG(curr, 0, 25, '#4A90E2', 100, 56)}
-      <div class="sg-val">${curr.toFixed(0)}</div>
-      <div class="sg-lbl">${p.label}</div>
-      <div class="sg-sub">${v.toFixed(4)}</div>`;
+
   });
 }
 
