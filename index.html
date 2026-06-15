@@ -274,10 +274,6 @@
   .comm-status-row{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap}
   .comm-status-chip{flex:1;min-width:140px;display:flex;align-items:center;gap:8px;font-size:11.5px;font-weight:600;background:var(--gris-claro);padding:8px 10px;border-radius:6px}
 
-  /* Mapa */
-  #map{height:300px;width:100%;border-radius:0 0 var(--radio) var(--radio);z-index:1}
-  .map-foot{display:flex;justify-content:space-between;align-items:center;padding:10px 14px;border-top:1px solid #eee;font-size:11.5px;color:var(--gris-medio)}
-
   /* ===== Gráficos de tendencia ===== */
   .trends-section{margin-top:16px}
   .trends-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:16px}
@@ -438,16 +434,6 @@
       <div class="sec-phases" id="secPhases"></div>
       <div class="ccm-stats-section" id="secStats"></div>
       <div class="sec-status-row" id="secStatus"></div>
-    </div>
-  </div>
-
-  <div class="section-title">Ubicación georreferenciada</div>
-  <div class="card">
-    <h4>📍 EB 13 ZS — Pilar, Ñeembucú</h4>
-    <div id="map"></div>
-    <div class="map-foot">
-      <span>Lat -26.8590 · Lon -58.2980 · Distrito de Pilar, Departamento de Ñeembucú</span>
-      <span class="status-pill st-ok"><span class="dot"></span> Operativa</span>
     </div>
   </div>
 
@@ -1723,43 +1709,7 @@ function renderWell(){
   if(wellAllHistory.length % 10 === 0) updateWellStats();
 }
 
-/* ====== Mapa ====== */
-let mapMarker = null;
-function buildPopupHTML(){
-  const activas = pumps.filter(p=>p.state==="run");
-  const bombasInfo = activas.length
-    ? activas.map(p=>`<tr><td style="padding:2px 6px;font-weight:700;color:#4A90E2">Bomba ${p.id}</td><td style="padding:2px 6px">${p.powN.toFixed(1)} kW</td><td style="padding:2px 6px">${p.pres.toFixed(2)} m</td></tr>`).join('')
-    : '<tr><td colspan="3" style="padding:4px 6px;color:#B0B0B0;font-style:italic">Ninguna bomba en servicio</td></tr>';
-  const lvlColor = wellLevel > 3.5 ? '#E74C3C' : wellLevel > 2.0 ? '#4A90E2' : '#F39C12';
-  return `<div style="font-family:Segoe UI,Arial,sans-serif;font-size:12px;min-width:200px">
-    <div style="font-size:14px;font-weight:700;margin-bottom:6px">EB 13 ZS</div>
-    <div style="color:#B0B0B0;font-size:11px;margin-bottom:8px">Estación de Bombeo · Pilar, Ñeembucú</div>
-    <table style="width:100%;border-collapse:collapse;margin-bottom:6px">
-      <tr style="border-bottom:1px solid #eee"><th style="padding:2px 6px;text-align:left;color:#B0B0B0;font-size:10px">BOMBA</th><th style="padding:2px 6px;text-align:left;color:#B0B0B0;font-size:10px">POTENCIA</th><th style="padding:2px 6px;text-align:left;color:#B0B0B0;font-size:10px">PRESIÓN</th></tr>
-      ${bombasInfo}
-    </table>
-    <div style="background:#D9EAF7;border-radius:4px;padding:6px 8px;display:flex;justify-content:space-between;align-items:center">
-      <span style="font-size:11px;font-weight:600;color:#4D4D4D">Nivel del pozo</span>
-      <span style="font-size:14px;font-weight:700;color:${lvlColor}">${wellLevel.toFixed(2)} m</span>
-    </div>
-  </div>`;
-}
-function updateMapPopup(){
-  if(mapMarker) mapMarker.setPopupContent(buildPopupHTML());
-}
-function initMap(){
-  try{
-    const map = L.map('map',{scrollWheelZoom:false}).setView([-26.8590,-58.2980],14);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
-      maxZoom:19, attribution:'© OpenStreetMap'
-    }).addTo(map);
-    const icon = L.divIcon({html:'<div style="background:#4A90E2;width:22px;height:22px;border-radius:50% 50% 50% 0;transform:rotate(-45deg);border:3px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,.4)"></div>',className:'',iconSize:[22,22],iconAnchor:[11,22]});
-    mapMarker = L.marker([-26.8590,-58.2980],{icon}).addTo(map)
-      .bindPopup(buildPopupHTML(),{maxWidth:280}).openPopup();
-  }catch(e){
-    document.getElementById('map').innerHTML='<div style="padding:40px;text-align:center;color:#B0B0B0">Mapa no disponible (sin conexión). EB 13 ZS · Lat -26.8590 · Lon -58.2980 · Pilar, Ñeembucú</div>';
-  }
-}
+
 
 /* ====== Alarmas ====== */
 let alarms = [
@@ -2045,7 +1995,7 @@ function simulate(){
   pushCcmHistory(); updateCcmCharts();
   pushSecHistory(); updateSecCharts();
   pushCommHistory(); updateCommCharts();
-  pushHistory(); updateCharts(); updateMapPopup();
+  pushHistory(); updateCharts();
 }
 
 /* ====== Buffer 24h para exportación Excel (1 muestra/min, máx 1440) ====== */
@@ -2310,7 +2260,7 @@ function showStation(){
 
 /* ====== Init ====== */
 buildCcmStructure(); buildSecStructure(); buildCommStructure();
-renderPumps(); renderElec(); renderSec(); renderSecStats(); renderSecStatus(); renderComm(); renderCommStats(); renderCommStatus(); renderWell(); renderAlarms(); tickClock(); initMap();
+renderPumps(); renderElec(); renderSec(); renderSecStats(); renderSecStatus(); renderComm(); renderCommStats(); renderCommStatus(); renderWell(); renderAlarms(); tickClock();
 pushCcmHistory(); initCcmCharts();
 pushSecHistory(); initSecCharts();
 pushCommHistory(); initCommCharts();
